@@ -1,0 +1,14 @@
+node_modules
+.next
+.turbo
+dist
+.env
+.env.local
+*.log
+uploads
+.DS_Store
+.expo
+.keystore
+.build
+android
+ios

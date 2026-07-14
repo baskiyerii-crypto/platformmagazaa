@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+pnpm:
+  overrides:
+    "@types/react": "^19.1.0"
+    "@types/react-dom": "^19.1.0"
+    "@expo/metro-runtime": "~6.1.2"

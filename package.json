@@ -1,0 +1,26 @@
+{
+  "name": "magaza-platform",
+  "private": true,
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "db:generate": "pnpm --filter @magaza/database generate",
+    "db:push": "pnpm --filter @magaza/database push",
+    "db:migrate": "pnpm --filter @magaza/database migrate",
+    "db:seed": "pnpm --filter @magaza/database seed",
+    "db:setup": "powershell -ExecutionPolicy Bypass -File scripts/setup-local-db.ps1",
+    "build:mobile:android": "pnpm --filter @magaza/mobile build:android",
+    "build:mobile:ios": "pnpm --filter @magaza/mobile build:ios",
+    "publish:mobile:android": "node apps/mobile/scripts/publish-release.js android",
+    "publish:mobile:ios": "node apps/mobile/scripts/publish-release.js ios"
+  },
+  "devDependencies": {
+    "turbo": "^2.3.3",
+    "typescript": "^5.7.2"
+  },
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  }
+}

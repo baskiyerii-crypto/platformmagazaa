@@ -1,0 +1,453 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  STORE
+}
+
+enum AreaCategoryType {
+  AVM
+  ACIK_HAVA
+  MAGAZA_ICI
+}
+
+enum ChangeTargetType {
+  AVM_VITRIN
+  OUTDOOR
+  AVM_VIDEO
+  STORE_SIGNAGE
+}
+
+enum ChangeRequestStatus {
+  TALEP_OLUSTURULDU
+  ONAYLANDI
+  ISLEME_ALINDI
+  HAZIRLIKTA
+  BASKIDA
+  TAMAMLANDI
+  GUNCELLEME_YUKLENDI
+  MAGAZADA_GUNCELLENDI
+  REDDEDILDI
+}
+
+enum AvmVitrinKind {
+  VITRIN
+  EKSTRA_ALAN
+}
+
+enum CatalogItemType {
+  FIXED
+  VARIABLE
+}
+
+enum NotificationType {
+  CHANGE_REQUEST
+  CATALOG_REQUEST
+  SUPPORT
+  ANNOUNCEMENT
+}
+
+enum AnnouncementAudience {
+  ALL_STORES
+  SELECTED_STORES
+}
+
+enum AnnouncementReceiptStatus {
+  BEKLIYOR
+  OKUNDU
+  ISLEME_ALINDI
+  TAMAMLANDI
+}
+
+enum MediaCategory {
+  AVM_VITRIN
+  OUTDOOR
+  STORE_SIGNAGE
+  CATALOG
+  CATALOG_REQUEST
+  ANNOUNCEMENT_COMPLETION
+  CHANGE_REQUEST
+  OTHER
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  passwordHash String
+  role         UserRole
+  storeId      String?
+  store        Store?   @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  changeRequestHistory ChangeRequestHistory[]
+  catalogRequestHistory CatalogRequestHistory[]
+  pushTokens           PushToken[]
+  notifications        Notification[]
+  announcements        Announcement[] @relation("AnnouncementAuthor")
+  mediaAssets          MediaAsset[]
+  @@index([storeId])
+  @@index([role])
+}
+
+model Store {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users           User[]
+  avmEntries      AvmEntry[]
+  outdoorEntries  OutdoorEntry[]
+  signageEntries  StoreSignageEntry[]
+  changeRequests  ChangeRequest[]
+  catalogRequests CatalogRequest[]
+  supportTickets  SupportTicket[]
+  announcementReceipts AnnouncementReceipt[]
+  mediaAssets     MediaAsset[]
+}
+
+model AreaCategory {
+  id        String           @id @default(cuid())
+  type      AreaCategoryType @unique
+  name      String
+  createdAt DateTime         @default(now())
+
+  subTypes AreaSubType[]
+}
+
+model AreaSubType {
+  id         String       @id @default(cuid())
+  categoryId String
+  category   AreaCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name       String
+  code       String
+  sortOrder  Int          @default(0)
+  createdAt  DateTime     @default(now())
+
+  avmEntries      AvmEntry[]
+  outdoorEntries  OutdoorEntry[]
+  signageEntries  StoreSignageEntry[]
+
+  @@unique([categoryId, code])
+}
+
+model PlacementOption {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  avmVideos       AvmVideo[]
+  signageEntries  StoreSignageEntry[]
+}
+
+model AvmEntry {
+  id        String      @id @default(cuid())
+  storeId   String
+  store     Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  subTypeId String
+  subType   AreaSubType @relation(fields: [subTypeId], references: [id])
+  note      String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  vitrins AvmVitrin[]
+  videos  AvmVideo[]
+
+  @@index([storeId])
+  @@index([subTypeId])
+  @@index([updatedAt])
+}
+
+model AvmVitrin {
+  id         String        @id @default(cuid())
+  avmEntryId String
+  avmEntry   AvmEntry      @relation(fields: [avmEntryId], references: [id], onDelete: Cascade)
+  kind       AvmVitrinKind @default(VITRIN)
+  siraNo     Int
+  en         Float
+  boy        Float
+  camEn      Float?
+  camBoy     Float?
+  konum      String?
+  gorselUrl  String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@index([avmEntryId])
+  @@index([kind])
+  @@index([createdAt])
+  @@unique([avmEntryId, siraNo])
+}
+
+model AvmVideo {
+  id          String          @id @default(cuid())
+  avmEntryId  String
+  avmEntry    AvmEntry        @relation(fields: [avmEntryId], references: [id], onDelete: Cascade)
+  placementId String
+  placement   PlacementOption @relation(fields: [placementId], references: [id])
+  adet        Int
+  en          Float?
+  boy         Float?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([avmEntryId])
+}
+
+model OutdoorEntry {
+  id        String      @id @default(cuid())
+  storeId   String
+  store     Store       @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  subTypeId String
+  subType   AreaSubType @relation(fields: [subTypeId], references: [id])
+  en        Float
+  boy       Float
+  adet      Int         @default(1)
+  note      String?
+  gorselUrl String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([storeId])
+  @@index([subTypeId])
+  @@index([createdAt])
+}
+
+model StoreSignageEntry {
+  id          String          @id @default(cuid())
+  storeId     String
+  store       Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  subTypeId   String
+  subType     AreaSubType     @relation(fields: [subTypeId], references: [id])
+  placementId String
+  placement   PlacementOption @relation(fields: [placementId], references: [id])
+  en          Float
+  boy         Float
+  adet        Int             @default(1)
+  note        String?
+  gorselUrl   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([storeId])
+  @@index([subTypeId])
+  @@index([placementId])
+  @@index([createdAt])
+}
+
+model ChangeRequest {
+  id        String              @id @default(cuid())
+  storeId   String
+  store     Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  targetType ChangeTargetType
+  targetId  String
+  note      String?
+  status    ChangeRequestStatus @default(TALEP_OLUSTURULDU)
+  adminNote String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+  completedAt DateTime?
+
+  history ChangeRequestHistory[]
+  images  ImageAsset[]
+
+  @@index([storeId])
+  @@index([status])
+  @@index([targetId])
+  @@index([createdAt])
+  @@index([storeId, status])
+  @@index([targetId, status])
+}
+
+model ChangeRequestHistory {
+  id              String              @id @default(cuid())
+  changeRequestId String
+  changeRequest   ChangeRequest       @relation(fields: [changeRequestId], references: [id], onDelete: Cascade)
+  fromStatus      ChangeRequestStatus?
+  toStatus        ChangeRequestStatus
+  userId          String?
+  user            User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  note            String?
+  createdAt       DateTime            @default(now())
+
+  @@index([changeRequestId])
+}
+
+model ImageAsset {
+  id              String         @id @default(cuid())
+  changeRequestId String?
+  changeRequest   ChangeRequest? @relation(fields: [changeRequestId], references: [id], onDelete: SetNull)
+  url             String
+  isArchived      Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+
+  @@index([changeRequestId])
+}
+
+model PushToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model CatalogItem {
+  id                 String          @id @default(cuid())
+  name               String
+  code               String          @unique
+  type               CatalogItemType
+  referenceImageUrl  String?
+  description        String?
+  active             Boolean         @default(true)
+  sortOrder          Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  requests CatalogRequest[]
+}
+
+model CatalogRequest {
+  id            String              @id @default(cuid())
+  storeId       String
+  store         Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  catalogItemId String
+  catalogItem   CatalogItem         @relation(fields: [catalogItemId], references: [id])
+  quantity      Int?
+  note          String?
+  storeImageUrl String?
+  status        ChangeRequestStatus @default(TALEP_OLUSTURULDU)
+  adminNote     String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  completedAt   DateTime?
+
+  history CatalogRequestHistory[]
+
+  @@index([storeId])
+  @@index([status])
+  @@index([catalogItemId])
+  @@index([createdAt])
+  @@index([storeId, status])
+}
+
+model CatalogRequestHistory {
+  id               String              @id @default(cuid())
+  catalogRequestId String
+  catalogRequest   CatalogRequest      @relation(fields: [catalogRequestId], references: [id], onDelete: Cascade)
+  fromStatus       ChangeRequestStatus?
+  toStatus         ChangeRequestStatus
+  userId           String?
+  user             User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  note             String?
+  createdAt        DateTime            @default(now())
+
+  @@index([catalogRequestId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  linkUrl   String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+model Announcement {
+  id          String               @id @default(cuid())
+  title       String
+  body        String               @db.Text
+  audience    AnnouncementAudience @default(ALL_STORES)
+  storeIds    String[]             @default([])
+  attachments Json?
+  publishedAt DateTime             @default(now())
+  expiresAt   DateTime?
+  createdById String
+  createdBy   User                 @relation("AnnouncementAuthor", fields: [createdById], references: [id])
+  active      Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  receipts    AnnouncementReceipt[]
+
+  @@index([active, publishedAt])
+}
+
+model AnnouncementReceipt {
+  id               String                     @id @default(cuid())
+  announcementId   String
+  announcement     Announcement               @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+  storeId          String
+  store            Store                      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  status           AnnouncementReceiptStatus  @default(BEKLIYOR)
+  readAt           DateTime?
+  processingAt     DateTime?
+  completedAt      DateTime?
+  completionImages String[]                   @default([])
+  note             String?
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+
+  @@unique([announcementId, storeId])
+  @@index([storeId, status])
+  @@index([announcementId, status])
+}
+
+model MediaAsset {
+  id          String        @id @default(cuid())
+  url         String
+  filename    String
+  category    MediaCategory
+  storeId     String?
+  store       Store?        @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?         @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  sourceRef   String?
+  createdAt   DateTime      @default(now())
+
+  @@index([category, createdAt])
+  @@index([storeId])
+}
+
+model SupportTicket {
+  id        String              @id @default(cuid())
+  storeId   String
+  store     Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  subject   String
+  message   String              @db.Text
+  status    SupportTicketStatus @default(OPEN)
+  adminNote String?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  @@index([storeId, status])
+  @@index([status])
+}
