@@ -1,0 +1,14 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm", "openssl"]
+
+[phases.install]
+cmds = ["corepack enable && pnpm install --frozen-lockfile"]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @magaza/database generate",
+  "pnpm --filter @magaza/web build"
+]
+
+[start]
+cmd = "pnpm --filter @magaza/web start"
