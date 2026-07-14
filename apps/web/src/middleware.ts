@@ -4,9 +4,13 @@ import { getToken } from "next-auth/jwt";
 import { isStaffRole } from "@magaza/shared";
 
 export async function middleware(request: NextRequest) {
+  const rawSecret =
+    process.env.NEXTAUTH_SECRET?.trim() || process.env.AUTH_SECRET?.trim();
+  const secret = rawSecret?.replace(/^["']|["']$/g, "");
+
   const token = await getToken({
     req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+    secret,
   });
 
   const { pathname } = request.nextUrl;

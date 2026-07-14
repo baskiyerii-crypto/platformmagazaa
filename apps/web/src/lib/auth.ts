@@ -33,8 +33,32 @@ declare module "next-auth/jwt" {
   }
 }
 
+function readEnv(...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const raw = process.env[key];
+    if (!raw) continue;
+    const value = raw.trim().replace(/^["']|["']$/g, "");
+    if (value) return value;
+  }
+  return undefined;
+}
+
+const authSecret = readEnv("NEXTAUTH_SECRET", "AUTH_SECRET");
+
+if (process.env.NODE_ENV === "production" && !authSecret) {
+  console.error(
+    "[auth] Missing NEXTAUTH_SECRET (or AUTH_SECRET). Set it in Coolify Environment Variables and redeploy."
+  );
+}
+
+if (process.env.NODE_ENV === "production" && !readEnv("NEXTAUTH_URL")) {
+  console.error(
+    "[auth] Missing NEXTAUTH_URL. Set it to your public Coolify URL (e.g. http://xxx.sslip.io) and redeploy."
+  );
+}
+
 export const authOptions: NextAuthOptions = {
-  secret: process.env.NEXTAUTH_SECRET,
+  secret: authSecret,
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
