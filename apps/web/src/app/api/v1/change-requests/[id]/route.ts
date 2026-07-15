@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@magaza/database";
-import { withAuth, withAuthParams, jsonError } from "@/lib/api-auth";
+import { withAuthParams, jsonError } from "@/lib/api-auth";
 import { updateChangeRequestStatusSchema, isStaffRole, CHANGE_REQUEST_STATUS_LABELS } from "@magaza/shared";
 import {
   createStatusHistory,
