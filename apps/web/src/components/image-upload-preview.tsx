@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,8 @@ type Props = {
   file: File | null;
   onFileChange: (file: File | null) => void;
   required?: boolean;
+  /** Düzenleme: mevcut görselin değiştirilebileceğini vurgula */
+  replaceHint?: boolean;
 };
 
 export function ImageUploadPreview({
@@ -20,7 +22,9 @@ export function ImageUploadPreview({
   file,
   onFileChange,
   required,
+  replaceHint,
 }: Props) {
+  const inputId = useId();
   const [preview, setPreview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,21 +37,60 @@ export function ImageUploadPreview({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
+  const pickLabel = file
+    ? "Başka dosya seç"
+    : existingUrl
+      ? "Görseli değiştir"
+      : "Dosya seç";
+
   return (
     <div className="space-y-3">
-      <Label>{label}{required ? " *" : ""}</Label>
+      <Label htmlFor={inputId}>
+        {label}
+        {required ? " *" : ""}
+      </Label>
+      {replaceHint && existingUrl && !file && (
+        <p className="text-xs text-muted-foreground">
+          İlk yüklenen görseli değiştirmek için &quot;Görseli değiştir&quot;e tıklayın.
+        </p>
+      )}
+      {file && (
+        <p className="text-xs text-primary">
+          Yeni görsel seçildi — Kaydet ile mevcut görselin yerine geçer.
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
-        {existingUrl && (
+        {existingUrl && !file && (
           <div className="space-y-2">
             <p className="text-xs text-muted-foreground">Mevcut</p>
             <div className="relative aspect-video overflow-hidden rounded-xl border bg-secondary">
-              <Image src={thumbUrl(existingUrl) ?? existingUrl} alt="Mevcut" fill className="object-cover" unoptimized />
+              <Image
+                src={thumbUrl(existingUrl) ?? existingUrl}
+                alt="Mevcut"
+                fill
+                className="object-cover"
+                unoptimized
+              />
+            </div>
+          </div>
+        )}
+        {existingUrl && file && (
+          <div className="space-y-2 opacity-60">
+            <p className="text-xs text-muted-foreground">Eski (değişecek)</p>
+            <div className="relative aspect-video overflow-hidden rounded-xl border bg-secondary">
+              <Image
+                src={thumbUrl(existingUrl) ?? existingUrl}
+                alt="Eski"
+                fill
+                className="object-cover"
+                unoptimized
+              />
             </div>
           </div>
         )}
         {preview && (
           <div className="space-y-2">
-            <p className="text-xs text-muted-foreground">Önizleme</p>
+            <p className="text-xs text-muted-foreground">Yeni</p>
             <div className="relative aspect-video overflow-hidden rounded-xl border ring-2 ring-primary">
               <Image src={preview} alt="Önizleme" fill className="object-cover" unoptimized />
             </div>
@@ -56,19 +99,25 @@ export function ImageUploadPreview({
       </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" asChild>
-          <label className="cursor-pointer">
-            {file ? "Değiştir" : "Dosya Seç"}
-            <input
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-            />
+          <label htmlFor={inputId} className="cursor-pointer">
+            {pickLabel}
           </label>
         </Button>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/*"
+          className="sr-only"
+          onChange={(e) => {
+            const selected = e.target.files?.[0] ?? null;
+            onFileChange(selected);
+            // aynı dosyayı tekrar seçebilsin
+            e.target.value = "";
+          }}
+        />
         {file && (
           <Button type="button" variant="ghost" size="sm" onClick={() => onFileChange(null)}>
-            Kaldır
+            Seçimi iptal
           </Button>
         )}
       </div>

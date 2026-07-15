@@ -229,23 +229,43 @@ export function AvmManager({
     if (!editVitrin || loading) return;
     setLoading(true);
     try {
+      let res: Response;
       if (editFile) {
         const fd = new FormData();
         fd.append("file", editFile);
-        await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, { method: "PATCH", body: fd });
+        fd.append("en", editEn);
+        fd.append("boy", editBoy);
+        fd.append("kind", editVitrin.kind ?? "VITRIN");
+        if (editVitrin.kind === "EKSTRA_ALAN") {
+          fd.append("konum", editKonum.trim());
+        } else {
+          fd.append("camEn", editCamEn);
+          fd.append("camBoy", editCamBoy);
+        }
+        res = await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, {
+          method: "PATCH",
+          body: fd,
+        });
+      } else {
+        res = await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            vitrinId: editVitrin.id,
+            kind: editVitrin.kind,
+            en: Number(editEn),
+            boy: Number(editBoy),
+            camEn: editVitrin.kind === "VITRIN" && editCamEn ? Number(editCamEn) : null,
+            camBoy: editVitrin.kind === "VITRIN" && editCamBoy ? Number(editCamBoy) : null,
+            konum: editVitrin.kind === "EKSTRA_ALAN" ? editKonum.trim() : null,
+          }),
+        });
       }
-      await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vitrinId: editVitrin.id,
-          en: Number(editEn),
-          boy: Number(editBoy),
-          camEn: editVitrin.kind === "VITRIN" && editCamEn ? Number(editCamEn) : null,
-          camBoy: editVitrin.kind === "VITRIN" && editCamBoy ? Number(editCamBoy) : null,
-          konum: editVitrin.kind === "EKSTRA_ALAN" ? editKonum.trim() : null,
-        }),
-      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Kayıt güncellenemedi.");
+        return;
+      }
       setEditVitrin(null);
       setEditFile(null);
       await load();

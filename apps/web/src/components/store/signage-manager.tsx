@@ -122,22 +122,37 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
     if (!editEntry || submitting) return;
     setSubmitting(true);
     try {
+      let res: Response;
       if (editFile) {
         const fd = new FormData();
         fd.append("file", editFile);
-        await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, { method: "PATCH", body: fd });
+        fd.append("placementId", editPlacementId);
+        fd.append("en", editEn);
+        fd.append("boy", editBoy);
+        fd.append("adet", editAdet);
+        fd.append("note", editNote);
+        res = await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, {
+          method: "PATCH",
+          body: fd,
+        });
+      } else {
+        res = await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            placementId: editPlacementId,
+            en: Number(editEn),
+            boy: Number(editBoy),
+            adet: Number(editAdet),
+            note: editNote || null,
+          }),
+        });
       }
-      await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          placementId: editPlacementId,
-          en: Number(editEn),
-          boy: Number(editBoy),
-          adet: Number(editAdet),
-          note: editNote || null,
-        }),
-      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Kayıt güncellenemedi.");
+        return;
+      }
       setEditEntry(null);
       setEditFile(null);
       await load();
@@ -247,6 +262,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => {
                   setEditEntry(entry);
+                  setEditFile(null);
                   setEditPlacementId(entry.placement.id);
                   setEditEn(String(entry.en));
                   setEditBoy(String(entry.boy));

@@ -334,38 +334,51 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
     if (!url) return;
     setBusy(true);
     try {
+      let res: Response;
+
       if (editFile) {
+        // Tek istek: ölçü + yeni görsel (ilk yüklenen görseli değiştirir)
         const fd = new FormData();
         fd.append("file", editFile);
-        const fileRes = await fetch(url, { method: "PATCH", body: fd });
-        if (!fileRes.ok) {
-          const err = await fileRes.json().catch(() => ({}));
-          alert(err.error ?? "Görsel güncellenemedi.");
-          return;
+        fd.append("en", editEn);
+        fd.append("boy", editBoy);
+        if (editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") {
+          fd.append("adet", editAdet);
         }
+        if (editItem.type === "AVM_VITRIN") {
+          fd.append("kind", editItem.kind ?? "VITRIN");
+          if (editItem.kind === "EKSTRA_ALAN") {
+            fd.append("konum", editKonum.trim());
+          } else {
+            fd.append("camEn", editCamEn);
+            fd.append("camBoy", editCamBoy);
+          }
+        }
+        res = await fetch(url, { method: "PATCH", body: fd });
+      } else {
+        const body: Record<string, unknown> = {
+          en: Number(editEn),
+          boy: Number(editBoy),
+        };
+
+        if (editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") {
+          body.adet = Number(editAdet);
+        }
+        if (editItem.type === "AVM_VITRIN") {
+          body.vitrinId = editItem.id;
+          body.kind = editItem.kind;
+          body.camEn = editCamEn ? Number(editCamEn) : null;
+          body.camBoy = editCamBoy ? Number(editCamBoy) : null;
+          body.konum = editItem.kind === "EKSTRA_ALAN" ? editKonum.trim() : null;
+        }
+
+        res = await fetch(url, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
       }
 
-      const body: Record<string, unknown> = {
-        en: Number(editEn),
-        boy: Number(editBoy),
-      };
-
-      if (editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") {
-        body.adet = Number(editAdet);
-      }
-      if (editItem.type === "AVM_VITRIN") {
-        body.vitrinId = editItem.id;
-        body.kind = editItem.kind;
-        body.camEn = editCamEn ? Number(editCamEn) : null;
-        body.camBoy = editCamBoy ? Number(editCamBoy) : null;
-        body.konum = editItem.kind === "EKSTRA_ALAN" ? editKonum.trim() : null;
-      }
-
-      const res = await fetch(url, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         alert(err.error ?? "Kayıt güncellenemedi.");
@@ -629,12 +642,18 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
                 )}
               </div>
               <ImageUploadPreview
+                label="Görsel"
                 existingUrl={editItem.gorselUrl}
                 file={editFile}
                 onFileChange={setEditFile}
+                replaceHint
               />
               <Button onClick={saveEdit} className="w-full" disabled={busy}>
-                {busy ? "Kaydediliyor..." : "Kaydet"}
+                {busy
+                  ? "Kaydediliyor..."
+                  : editFile
+                    ? "Kaydet (görsel değişecek)"
+                    : "Kaydet"}
               </Button>
             </div>
           )}

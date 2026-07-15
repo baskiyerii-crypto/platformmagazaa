@@ -103,21 +103,35 @@ export function OutdoorManager({ storeId, adminMode, formOnly, storeName, onSucc
     if (!editEntry || submitting) return;
     setSubmitting(true);
     try {
+      let res: Response;
       if (editFile) {
         const fd = new FormData();
         fd.append("file", editFile);
-        await fetch(`/api/v1/store/outdoor-entries/${editEntry.id}`, { method: "PATCH", body: fd });
+        fd.append("en", editEn);
+        fd.append("boy", editBoy);
+        fd.append("adet", editAdet);
+        fd.append("note", editNote);
+        res = await fetch(`/api/v1/store/outdoor-entries/${editEntry.id}`, {
+          method: "PATCH",
+          body: fd,
+        });
+      } else {
+        res = await fetch(`/api/v1/store/outdoor-entries/${editEntry.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            en: Number(editEn),
+            boy: Number(editBoy),
+            adet: Number(editAdet),
+            note: editNote || null,
+          }),
+        });
       }
-      await fetch(`/api/v1/store/outdoor-entries/${editEntry.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          en: Number(editEn),
-          boy: Number(editBoy),
-          adet: Number(editAdet),
-          note: editNote || null,
-        }),
-      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Kayıt güncellenemedi.");
+        return;
+      }
       setEditEntry(null);
       setEditFile(null);
       await load();

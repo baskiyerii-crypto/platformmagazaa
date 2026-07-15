@@ -21,17 +21,58 @@ export const PATCH = withAuthParams<{ id: string }>(async (request, auth, contex
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    if (!file?.size) return jsonError("Dosya gerekli", 400);
-    const url = await saveUploadedFile(file, {
-      category: "AVM_VITRIN",
-      storeId: vitrin.avmEntry.storeId,
-      createdById: auth.userId,
-      sourceRef: `avm-vitrin:${id}`,
-    });
-    await replaceMediaUrl(vitrin.gorselUrl, url);
+    const data: {
+      gorselUrl?: string;
+      en?: number;
+      boy?: number;
+      kind?: "VITRIN" | "EKSTRA_ALAN";
+      camEn?: number | null;
+      camBoy?: number | null;
+      konum?: string | null;
+    } = {};
+
+    const enRaw = formData.get("en");
+    const boyRaw = formData.get("boy");
+    if (enRaw != null && String(enRaw) !== "") data.en = Number(enRaw);
+    if (boyRaw != null && String(boyRaw) !== "") data.boy = Number(boyRaw);
+
+    const kindRaw = formData.get("kind");
+    if (kindRaw === "VITRIN" || kindRaw === "EKSTRA_ALAN") {
+      data.kind = kindRaw;
+    }
+    const kind = data.kind ?? vitrin.kind;
+
+    if (kind === "EKSTRA_ALAN") {
+      const konumRaw = formData.get("konum");
+      if (konumRaw != null) data.konum = String(konumRaw).trim() || null;
+      data.camEn = null;
+      data.camBoy = null;
+    } else {
+      const camEnRaw = formData.get("camEn");
+      const camBoyRaw = formData.get("camBoy");
+      if (camEnRaw != null && String(camEnRaw) !== "") data.camEn = Number(camEnRaw);
+      else if (formData.has("camEn")) data.camEn = null;
+      if (camBoyRaw != null && String(camBoyRaw) !== "") data.camBoy = Number(camBoyRaw);
+      else if (formData.has("camBoy")) data.camBoy = null;
+      data.konum = null;
+    }
+
+    if (file?.size) {
+      const url = await saveUploadedFile(file, {
+        category: "AVM_VITRIN",
+        storeId: vitrin.avmEntry.storeId,
+        createdById: auth.userId,
+        sourceRef: `avm-vitrin:${id}`,
+      });
+      await replaceMediaUrl(vitrin.gorselUrl, url);
+      data.gorselUrl = url;
+    } else if (!Object.keys(data).length) {
+      return jsonError("Güncellenecek alan yok", 400);
+    }
+
     const updated = await prisma.avmVitrin.update({
       where: { id },
-      data: { gorselUrl: url },
+      data,
     });
     return NextResponse.json(updated);
   }
@@ -46,13 +87,15 @@ export const PATCH = withAuthParams<{ id: string }>(async (request, auth, contex
   const updated = await prisma.avmVitrin.update({
     where: { id },
     data: {
-      en: parsed.data.en,
-      boy: parsed.data.boy,
+      ...(parsed.data.en !== undefined ? { en: parsed.data.en } : {}),
+      ...(parsed.data.boy !== undefined ? { boy: parsed.data.boy } : {}),
       kind,
       camEn: kind === "EKSTRA_ALAN" ? null : parsed.data.camEn,
       camBoy: kind === "EKSTRA_ALAN" ? null : parsed.data.camBoy,
       konum: kind === "EKSTRA_ALAN" ? parsed.data.konum?.trim() ?? vitrin.konum : null,
-      gorselUrl: parsed.data.gorselUrl,
+      ...(parsed.data.gorselUrl !== undefined
+        ? { gorselUrl: parsed.data.gorselUrl }
+        : {}),
     },
   });
   if (parsed.data.gorselUrl && parsed.data.gorselUrl !== vitrin.gorselUrl) {
