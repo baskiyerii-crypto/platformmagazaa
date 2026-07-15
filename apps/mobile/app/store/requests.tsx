@@ -9,6 +9,7 @@ import { STORE_MENU } from "@/lib/menus";
 import {
   CHANGE_REQUEST_STATUS_LABELS,
   canStoreUploadImage,
+  changeTargetTypeLabel,
   type ChangeRequestStatus,
   type PaginatedResponse,
 } from "@magaza/shared";
@@ -73,7 +74,7 @@ export default function StoreRequests() {
 
   const renderItem = useCallback(({ item: req }: { item: Request }) => (
     <Card>
-      <Text style={styles.cardTitle}>{req.targetType}</Text>
+      <Text style={styles.cardTitle}>{changeTargetTypeLabel(req.targetType)}</Text>
       {req.note ? <Text style={styles.cardBody}>{req.note}</Text> : null}
       {req.status === "GUNCELLEME_YUKLENDI" && (
         <Text style={[styles.cardBody, { color: "#B45309", marginTop: 8 }]}>

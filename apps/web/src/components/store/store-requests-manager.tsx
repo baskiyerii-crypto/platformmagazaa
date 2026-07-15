@@ -7,6 +7,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { formatDate } from "@/lib/utils";
 import {
   canStoreUploadImage,
+  changeTargetTypeLabel,
   type ChangeRequestStatus,
 } from "@magaza/shared";
 
@@ -65,7 +66,7 @@ export function StoreRequestsManager() {
           <Card key={req.id}>
             <CardContent className="flex flex-col gap-4 p-6 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="font-medium">{req.targetType}</div>
+                <div className="font-medium">{changeTargetTypeLabel(req.targetType)}</div>
                 <div className="text-sm text-muted-foreground">{formatDate(req.createdAt)}</div>
                 {req.note && <p className="mt-1 text-sm">{req.note}</p>}
                 {req.status === "GUNCELLEME_YUKLENDI" && (

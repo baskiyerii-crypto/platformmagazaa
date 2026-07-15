@@ -3,209 +3,297 @@ import { prisma } from "@magaza/database";
 import { groupSizesWithTolerance, type SizeInput } from "@/lib/size-groups";
 import { addSizeSummarySheet } from "@/lib/requests-excel";
 
-const AVM_COLUMNS: Partial<ExcelJS.Column>[] = [
-  { header: "Mağaza", key: "store", width: 25 },
-  { header: "Tür", key: "tur", width: 14 },
-  { header: "No", key: "vitrinNo", width: 8 },
-  { header: "Konum", key: "konum", width: 20 },
-  { header: "En", key: "en", width: 10 },
-  { header: "Boy", key: "boy", width: 10 },
-  { header: "Cam En", key: "camEn", width: 10 },
-  { header: "Cam Boy", key: "camBoy", width: 10 },
-  { header: "Video Adet", key: "videoAdet", width: 12 },
-  { header: "Video Konum", key: "videoKonum", width: 15 },
-  { header: "Görsel URL", key: "gorsel", width: 40 },
-  { header: "Güncelleme", key: "updated", width: 20 },
-];
-
-function cloneColumns(cols: Partial<ExcelJS.Column>[]) {
-  return cols.map((c) => ({ ...c }));
+function styleHeader(sheet: ExcelJS.Worksheet, rowNumber = 1) {
+  const row = sheet.getRow(rowNumber);
+  row.font = { bold: true };
+  row.fill = {
+    type: "pattern",
+    pattern: "solid",
+    fgColor: { argb: "FFE2E8F0" },
+  };
 }
 
+function addSheet(
+  workbook: ExcelJS.Workbook,
+  name: string,
+  headers: string[],
+  widths: number[]
+) {
+  const sheet = workbook.addWorksheet(name);
+  headers.forEach((_, i) => {
+    sheet.getColumn(i + 1).width = widths[i] ?? 14;
+  });
+  sheet.addRow(headers);
+  styleHeader(sheet, 1);
+  return sheet;
+}
+
+/**
+ * Detaylı mağaza Excel'i.
+ * Satırlar key/object yerine dizi ile yazılır (ExcelJS + Next Response güvenilir).
+ */
 export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Mağaza Platform";
   workbook.created = new Date();
 
-  const storeFilter = storeId ? { id: storeId } : {};
-  const stores = await prisma.store.findMany({
-    where: storeFilter,
-    include: {
-      avmEntries: {
-        include: {
-          subType: { include: { category: true } },
-          vitrins: true,
-          videos: { include: { placement: true } },
+  const storeWhere = storeId ? { id: storeId } : undefined;
+
+  const [vitrins, outdoors, signages, requests, storeCount] = await Promise.all([
+    prisma.avmVitrin.findMany({
+      where: storeWhere ? { avmEntry: { storeId } } : undefined,
+      include: {
+        avmEntry: {
+          include: {
+            store: { select: { name: true } },
+            subType: { select: { name: true, code: true } },
+            videos: { include: { placement: { select: { name: true } } } },
+          },
         },
       },
-      outdoorEntries: { include: { subType: true } },
-      signageEntries: { include: { subType: true, placement: true } },
-      changeRequests: true,
-    },
-    orderBy: { name: "asc" },
-  });
-
-  // ExcelJS mutates column defs — never share the same array across sheets
-  const ucretsizSheet = workbook.addWorksheet("AVM Ücretsiz");
-  ucretsizSheet.columns = cloneColumns(AVM_COLUMNS);
-
-  const ucretliSheet = workbook.addWorksheet("AVM Ücretli");
-  ucretliSheet.columns = cloneColumns(AVM_COLUMNS);
-
-  const acikHavaSheet = workbook.addWorksheet("Açık Hava");
-  acikHavaSheet.columns = cloneColumns([
-    { header: "Mağaza", key: "store", width: 25 },
-    { header: "Tür", key: "tur", width: 20 },
-    { header: "En", key: "en", width: 10 },
-    { header: "Boy", key: "boy", width: 10 },
-    { header: "Adet", key: "adet", width: 10 },
-    { header: "Not", key: "note", width: 30 },
-    { header: "Görsel URL", key: "gorsel", width: 40 },
-    { header: "Güncelleme", key: "updated", width: 20 },
+      orderBy: [{ siraNo: "asc" }, { createdAt: "desc" }],
+    }),
+    prisma.outdoorEntry.findMany({
+      where: storeWhere ? { storeId } : undefined,
+      include: {
+        store: { select: { name: true } },
+        subType: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.storeSignageEntry.findMany({
+      where: storeWhere ? { storeId } : undefined,
+      include: {
+        store: { select: { name: true } },
+        subType: { select: { name: true } },
+        placement: { select: { name: true } },
+      },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.changeRequest.findMany({
+      where: storeWhere ? { storeId } : undefined,
+      include: { store: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.store.count({ where: storeWhere }),
   ]);
 
-  const magazaIciSheet = workbook.addWorksheet("Mağaza İçi");
-  magazaIciSheet.columns = cloneColumns([
-    { header: "Mağaza", key: "store", width: 25 },
-    { header: "Tür", key: "tur", width: 20 },
-    { header: "Konum", key: "konum", width: 25 },
-    { header: "En", key: "en", width: 10 },
-    { header: "Boy", key: "boy", width: 10 },
-    { header: "Adet", key: "adet", width: 10 },
-    { header: "Not", key: "note", width: 30 },
-    { header: "Görsel URL", key: "gorsel", width: 40 },
-    { header: "Güncelleme", key: "updated", width: 20 },
-  ]);
+  const avmHeaders = [
+    "Mağaza",
+    "Tür",
+    "No",
+    "Konum",
+    "En",
+    "Boy",
+    "Cam En",
+    "Cam Boy",
+    "Video Adet",
+    "Video Konum",
+    "Görsel URL",
+    "Güncelleme",
+  ];
+  const avmWidths = [22, 12, 8, 18, 8, 8, 8, 8, 10, 16, 36, 18];
 
-  const talepSheet = workbook.addWorksheet("Talepler");
-  talepSheet.columns = cloneColumns([
-    { header: "Mağaza", key: "store", width: 25 },
-    { header: "Hedef", key: "target", width: 15 },
-    { header: "Durum", key: "status", width: 20 },
-    { header: "Talep Tarihi", key: "created", width: 20 },
-    { header: "Tamamlanma", key: "completed", width: 20 },
-    { header: "Not", key: "note", width: 30 },
-  ]);
+  const ucretsizSheet = addSheet(workbook, "AVM Ücretsiz", avmHeaders, avmWidths);
+  const ucretliSheet = addSheet(workbook, "AVM Ücretli", avmHeaders, avmWidths);
+
+  const acikHavaSheet = addSheet(
+    workbook,
+    "Açık Hava",
+    ["Mağaza", "Tür", "En", "Boy", "Adet", "Not", "Görsel URL", "Güncelleme"],
+    [22, 18, 8, 8, 8, 28, 36, 18]
+  );
+
+  const magazaIciSheet = addSheet(
+    workbook,
+    "Mağaza İçi",
+    ["Mağaza", "Tür", "Konum", "En", "Boy", "Adet", "Not", "Görsel URL", "Güncelleme"],
+    [22, 18, 18, 8, 8, 8, 28, 36, 18]
+  );
+
+  const talepSheet = addSheet(
+    workbook,
+    "Talepler",
+    ["Mağaza", "Hedef", "Durum", "Talep Tarihi", "Tamamlanma", "Not"],
+    [22, 14, 16, 18, 18, 28]
+  );
+
+  const ozetSheet = addSheet(
+    workbook,
+    "Özet",
+    ["Alan", "Değer"],
+    [28, 40]
+  );
 
   const sizeInputs: SizeInput[] = [];
 
-  for (const store of stores) {
-    for (const entry of store.avmEntries) {
-      const sheet =
-        entry.subType.code === "UCRETSIZ" ? ucretsizSheet : ucretliSheet;
-      const videoSummary = entry.videos
-        .map((v) => `${v.adet}x ${v.placement.name}`)
-        .join(", ");
+  for (const v of vitrins) {
+    const entry = v.avmEntry;
+    const sheet = entry.subType.code === "UCRETSIZ" ? ucretsizSheet : ucretliSheet;
+    const videoSummary = entry.videos
+      .map((vid) => `${vid.adet}x ${vid.placement.name}`)
+      .join(", ");
+    const videoAdet = entry.videos.reduce((s, vid) => s + vid.adet, 0);
+    const tur = v.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin";
+    const konum =
+      v.konum?.trim() || (v.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin");
 
-      if (entry.vitrins.length === 0 && entry.videos.length > 0) {
-        sheet.addRow({
-          store: store.name,
-          videoAdet: entry.videos.reduce((s, v) => s + v.adet, 0),
-          videoKonum: videoSummary,
-          updated: entry.updatedAt.toISOString(),
-        });
-      }
+    sheet.addRow([
+      entry.store.name,
+      tur,
+      v.siraNo,
+      v.konum ?? "",
+      v.en,
+      v.boy,
+      v.kind === "EKSTRA_ALAN" ? "" : (v.camEn ?? ""),
+      v.kind === "EKSTRA_ALAN" ? "" : (v.camBoy ?? ""),
+      videoAdet || "",
+      videoSummary,
+      v.gorselUrl ?? "",
+      v.updatedAt.toISOString(),
+    ]);
 
-      for (const vitrin of entry.vitrins) {
-        const tur = vitrin.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin";
-        const konum =
-          vitrin.konum?.trim() ||
-          (vitrin.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin");
-        sheet.addRow({
-          store: store.name,
-          tur,
-          vitrinNo: vitrin.siraNo,
-          konum: vitrin.konum ?? "",
-          en: vitrin.en,
-          boy: vitrin.boy,
-          camEn: vitrin.kind === "EKSTRA_ALAN" ? "" : vitrin.camEn ?? "",
-          camBoy: vitrin.kind === "EKSTRA_ALAN" ? "" : vitrin.camBoy ?? "",
-          videoAdet: entry.videos.reduce((s, v) => s + v.adet, 0) || "",
-          videoKonum: videoSummary,
-          gorsel: vitrin.gorselUrl ?? "",
-          updated: vitrin.updatedAt.toISOString(),
-        });
+    sizeInputs.push({ en: v.en, boy: v.boy, adet: 1, konum });
+  }
+
+  const seenVideoEntries = new Set<string>();
+  for (const v of vitrins) {
+    const entry = v.avmEntry;
+    if (seenVideoEntries.has(entry.id)) continue;
+    seenVideoEntries.add(entry.id);
+    for (const video of entry.videos) {
+      if (video.en != null && video.boy != null && video.en > 0 && video.boy > 0) {
         sizeInputs.push({
-          en: vitrin.en,
-          boy: vitrin.boy,
-          adet: 1,
-          konum,
+          en: video.en,
+          boy: video.boy,
+          adet: video.adet,
+          konum: video.placement.name,
         });
       }
-
-      for (const video of entry.videos) {
-        if (video.en != null && video.boy != null && video.en > 0 && video.boy > 0) {
-          sizeInputs.push({
-            en: video.en,
-            boy: video.boy,
-            adet: video.adet,
-            konum: video.placement.name,
-          });
-        }
-      }
-    }
-
-    for (const outdoor of store.outdoorEntries) {
-      acikHavaSheet.addRow({
-        store: store.name,
-        tur: outdoor.subType.name,
-        en: outdoor.en,
-        boy: outdoor.boy,
-        adet: outdoor.adet,
-        note: outdoor.note ?? "",
-        gorsel: outdoor.gorselUrl ?? "",
-        updated: outdoor.updatedAt.toISOString(),
-      });
-      sizeInputs.push({
-        en: outdoor.en,
-        boy: outdoor.boy,
-        adet: outdoor.adet,
-        konum: outdoor.subType.name,
-      });
-    }
-
-    for (const signage of store.signageEntries) {
-      magazaIciSheet.addRow({
-        store: store.name,
-        tur: signage.subType.name,
-        konum: signage.placement.name,
-        en: signage.en,
-        boy: signage.boy,
-        adet: signage.adet,
-        note: signage.note ?? "",
-        gorsel: signage.gorselUrl ?? "",
-        updated: signage.updatedAt.toISOString(),
-      });
-      sizeInputs.push({
-        en: signage.en,
-        boy: signage.boy,
-        adet: signage.adet,
-        konum: signage.placement.name,
-      });
-    }
-
-    for (const req of store.changeRequests) {
-      talepSheet.addRow({
-        store: store.name,
-        target: req.targetType,
-        status: req.status,
-        created: req.createdAt.toISOString(),
-        completed: req.completedAt?.toISOString() ?? "",
-        note: req.note ?? "",
-      });
     }
   }
 
-  [ucretsizSheet, ucretliSheet, acikHavaSheet, magazaIciSheet, talepSheet].forEach(
-    (sheet) => {
-      sheet.getRow(1).font = { bold: true };
-      sheet.getRow(1).fill = {
-        type: "pattern",
-        pattern: "solid",
-        fgColor: { argb: "FFE2E8F0" },
-      };
+  // Video-only AVM entries (no vitrin rows)
+  const videoOnlyEntries = await prisma.avmEntry.findMany({
+    where: {
+      ...(storeId ? { storeId } : {}),
+      vitrins: { none: {} },
+      videos: { some: {} },
+    },
+    include: {
+      store: { select: { name: true } },
+      subType: { select: { code: true } },
+      videos: { include: { placement: { select: { name: true } } } },
+    },
+  });
+
+  for (const entry of videoOnlyEntries) {
+    const sheet = entry.subType.code === "UCRETSIZ" ? ucretsizSheet : ucretliSheet;
+    const videoSummary = entry.videos
+      .map((vid) => `${vid.adet}x ${vid.placement.name}`)
+      .join(", ");
+    sheet.addRow([
+      entry.store.name,
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      entry.videos.reduce((s, vid) => s + vid.adet, 0),
+      videoSummary,
+      "",
+      entry.updatedAt.toISOString(),
+    ]);
+    for (const video of entry.videos) {
+      if (video.en != null && video.boy != null && video.en > 0 && video.boy > 0) {
+        sizeInputs.push({
+          en: video.en,
+          boy: video.boy,
+          adet: video.adet,
+          konum: video.placement.name,
+        });
+      }
     }
-  );
+  }
+
+  for (const o of outdoors) {
+    acikHavaSheet.addRow([
+      o.store.name,
+      o.subType.name,
+      o.en,
+      o.boy,
+      o.adet,
+      o.note ?? "",
+      o.gorselUrl ?? "",
+      o.updatedAt.toISOString(),
+    ]);
+    sizeInputs.push({
+      en: o.en,
+      boy: o.boy,
+      adet: o.adet,
+      konum: o.subType.name,
+    });
+  }
+
+  for (const s of signages) {
+    magazaIciSheet.addRow([
+      s.store.name,
+      s.subType.name,
+      s.placement.name,
+      s.en,
+      s.boy,
+      s.adet,
+      s.note ?? "",
+      s.gorselUrl ?? "",
+      s.updatedAt.toISOString(),
+    ]);
+    sizeInputs.push({
+      en: s.en,
+      boy: s.boy,
+      adet: s.adet,
+      konum: s.placement.name,
+    });
+  }
+
+  for (const req of requests) {
+    talepSheet.addRow([
+      req.store.name,
+      req.targetType,
+      req.status,
+      req.createdAt.toISOString(),
+      req.completedAt?.toISOString() ?? "",
+      req.note ?? "",
+    ]);
+  }
+
+  const dataRowCount =
+    vitrins.length +
+    videoOnlyEntries.length +
+    outdoors.length +
+    signages.length +
+    requests.length;
+
+  ozetSheet.addRow(["Mağaza sayısı", storeCount]);
+  ozetSheet.addRow(["AVM vitrin / ekstra", vitrins.length]);
+  ozetSheet.addRow(["AVM yalnızca video", videoOnlyEntries.length]);
+  ozetSheet.addRow(["Açık hava", outdoors.length]);
+  ozetSheet.addRow(["Mağaza içi", signages.length]);
+  ozetSheet.addRow(["Talepler", requests.length]);
+  ozetSheet.addRow(["Toplam satır", dataRowCount]);
+  ozetSheet.addRow([
+    "Filtre",
+    storeId ? `Mağaza id: ${storeId}` : "Tüm mağazalar",
+  ]);
+  ozetSheet.addRow(["Oluşturma", new Date().toISOString()]);
+
+  if (dataRowCount === 0) {
+    ozetSheet.addRow([
+      "Uyarı",
+      "Veritabanında bu filtreye ait envanter kaydı yok. Admin → Envanter sayfasını kontrol edin.",
+    ]);
+  }
 
   const groups = groupSizesWithTolerance(sizeInputs);
   addSizeSummarySheet(

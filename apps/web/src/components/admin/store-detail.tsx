@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useIsStrictAdmin, useUserRole } from "@/lib/role-context";
-import { isStaffRole } from "@magaza/shared";
+import { isStaffRole, changeTargetTypeLabel } from "@magaza/shared";
 import { ArrowLeft, Trash2, KeyRound, Pencil, Save } from "lucide-react";
 import { thumbUrl } from "@magaza/shared";
 import { Button } from "@/components/ui/button";
@@ -285,7 +285,7 @@ export function StoreDetail({ storeId }: { storeId: string }) {
         <CardContent className="space-y-2">
           {store.changeRequests.map((req) => (
             <div key={req.id} className="flex items-center justify-between rounded-xl border p-3">
-              <span className="text-sm">{req.targetType}</span>
+              <span className="text-sm">{changeTargetTypeLabel(req.targetType)}</span>
               <StatusBadge status={req.status} />
             </div>
           ))}

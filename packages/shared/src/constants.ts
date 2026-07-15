@@ -70,6 +70,17 @@ export type AreaCategoryType = (typeof AREA_CATEGORIES)[number];
 export const CHANGE_TARGET_TYPES = ["AVM_VITRIN", "OUTDOOR", "AVM_VIDEO", "STORE_SIGNAGE"] as const;
 export type ChangeTargetType = (typeof CHANGE_TARGET_TYPES)[number];
 
+export const CHANGE_TARGET_TYPE_LABELS: Record<ChangeTargetType, string> = {
+  AVM_VITRIN: "AVM Vitrin",
+  OUTDOOR: "Açık Hava",
+  AVM_VIDEO: "AVM Video",
+  STORE_SIGNAGE: "Mağaza İçi",
+};
+
+export function changeTargetTypeLabel(type: string): string {
+  return CHANGE_TARGET_TYPE_LABELS[type as ChangeTargetType] ?? type;
+}
+
 export const AVM_VITRIN_KINDS = ["VITRIN", "EKSTRA_ALAN"] as const;
 export type AvmVitrinKind = (typeof AVM_VITRIN_KINDS)[number];
 

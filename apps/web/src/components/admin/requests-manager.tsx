@@ -15,6 +15,8 @@ import {
   ADMIN_STATUS_TRANSITIONS,
   CHANGE_REQUEST_STATUS_LABELS,
   CHANGE_TARGET_TYPES,
+  CHANGE_TARGET_TYPE_LABELS,
+  changeTargetTypeLabel,
   canApproveStoreUpdate,
   thumbUrl,
   type PaginatedResponse,
@@ -326,7 +328,11 @@ export function RequestsManager() {
             <Label>Hedef</Label>
             <select className="flex h-10 w-full rounded-xl border px-3 text-sm" value={targetType} onChange={(e) => setTargetType(e.target.value)}>
               <option value="">Tümü</option>
-              {CHANGE_TARGET_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+              {CHANGE_TARGET_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {CHANGE_TARGET_TYPE_LABELS[t]}
+                </option>
+              ))}
             </select>
           </div>
         )}
@@ -407,7 +413,9 @@ export function RequestsManager() {
                               )}
                             </div>
                           ) : (
-                            <div className="text-sm text-muted-foreground">{req.targetType}</div>
+                            <div className="text-sm text-muted-foreground">
+                              {changeTargetTypeLabel(req.targetType)}
+                            </div>
                           )}
 
                           {req.note && <p className="text-sm">{req.note}</p>}
@@ -437,7 +445,7 @@ export function RequestsManager() {
                             variant="destructive"
                             disabled={busy}
                             onClick={() =>
-                              deleteOne(req.id, `${req.store.name} · ${target?.summary ?? req.targetType}`)
+                              deleteOne(req.id, `${req.store.name} · ${target?.summary ?? changeTargetTypeLabel(req.targetType)}`)
                             }
                           >
                             <Trash2 className="mr-1 h-3 w-3" /> Sil

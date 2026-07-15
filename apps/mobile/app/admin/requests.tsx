@@ -19,6 +19,7 @@ import {
   ADMIN_STATUS_TRANSITIONS,
   CHANGE_REQUEST_STATUS_LABELS,
   canApproveStoreUpdate,
+  changeTargetTypeLabel,
   thumbUrl,
   type ChangeRequestStatus,
   type PaginatedResponse,
@@ -205,7 +206,7 @@ export default function AdminRequests() {
             ) : null}
           </>
         ) : (
-          <Text style={styles.cardSubtitle}>{req.targetType}</Text>
+          <Text style={styles.cardSubtitle}>{changeTargetTypeLabel(req.targetType)}</Text>
         )}
         {req.note ? <Text style={styles.cardBody}>{req.note}</Text> : null}
         <RequestThumbnails images={req.images} target={req.target} onPreview={setPreviewUrl} />

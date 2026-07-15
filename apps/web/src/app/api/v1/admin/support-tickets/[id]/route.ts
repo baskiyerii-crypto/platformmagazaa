@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@magaza/database";
 import { withAuthParams, jsonError } from "@/lib/api-auth";
-import { updateSupportTicketSchema } from "@magaza/shared";
+import { updateSupportTicketSchema, SUPPORT_TICKET_STATUS_LABELS } from "@magaza/shared";
 import { notifyStoreUsers } from "@/lib/notify";
 
 export const PATCH = withAuthParams<{ id: string }>(
@@ -23,10 +23,12 @@ export const PATCH = withAuthParams<{ id: string }>(
     });
 
     if (parsed.data.status && parsed.data.status !== existing.status) {
+      const statusLabel =
+        SUPPORT_TICKET_STATUS_LABELS[parsed.data.status] ?? parsed.data.status;
       await notifyStoreUsers(existing.storeId, {
         type: "SUPPORT",
         title: "Destek Talebi Güncellendi",
-        body: `${ticket.subject} — ${parsed.data.status}`,
+        body: `${ticket.subject} — ${statusLabel}`,
         linkUrl: "/store/support",
       });
     }
