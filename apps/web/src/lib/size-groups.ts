@@ -1,10 +1,18 @@
 /** Default tolerance for treating two sizes as the same (cm). */
 export const SIZE_TOLERANCE_CM = 3;
+export const NO_LOCATION_LABEL = "Konum yok";
 
 export type SizeInput = {
   en: number;
   boy: number;
   adet?: number | null;
+  konum?: string | null;
+};
+
+export type SizeLocationBreakdown = {
+  konum: string;
+  toplamAdet: number;
+  kayitSayisi: number;
 };
 
 export type SizeGroup = {
@@ -16,6 +24,8 @@ export type SizeGroup = {
   label: string;
   toplamAdet: number;
   kayitSayisi: number;
+  /** Nested location counts within this size cluster */
+  konumlar: SizeLocationBreakdown[];
 };
 
 function normalizeAxes(en: number, boy: number): { a: number; b: number } {
@@ -26,9 +36,14 @@ function roundCm(n: number): number {
   return Math.round(n * 10) / 10;
 }
 
+function normalizeKonum(raw?: string | null): string {
+  const t = raw?.trim();
+  return t ? t : NO_LOCATION_LABEL;
+}
+
 /**
  * Cluster dimensions within ±toleranceCm on both axes (after orientation normalize).
- * Greedy: sort by a,b then join cluster if within tolerance of running average.
+ * Locations are tallied inside each size cluster.
  */
 export function groupSizesWithTolerance(
   items: SizeInput[],
@@ -40,6 +55,7 @@ export function groupSizesWithTolerance(
     weight: number;
     toplamAdet: number;
     kayitSayisi: number;
+    byKonum: Map<string, { toplamAdet: number; kayitSayisi: number }>;
   };
 
   const normalized = items
@@ -56,11 +72,18 @@ export function groupSizesWithTolerance(
         i.adet != null && Number.isFinite(i.adet) && i.adet > 0
           ? Math.floor(i.adet)
           : 1;
-      return { a, b, adet };
+      return { a, b, adet, konum: normalizeKonum(i.konum) };
     })
     .sort((x, y) => x.a - y.a || x.b - y.b);
 
   const clusters: Cluster[] = [];
+
+  function addKonum(c: Cluster, konum: string, adet: number) {
+    const cur = c.byKonum.get(konum) ?? { toplamAdet: 0, kayitSayisi: 0 };
+    cur.toplamAdet += adet;
+    cur.kayitSayisi += 1;
+    c.byKonum.set(konum, cur);
+  }
 
   for (const item of normalized) {
     let matched: Cluster | null = null;
@@ -82,14 +105,18 @@ export function groupSizesWithTolerance(
       matched.weight += 1;
       matched.toplamAdet += item.adet;
       matched.kayitSayisi += 1;
+      addKonum(matched, item.konum, item.adet);
     } else {
-      clusters.push({
+      const c: Cluster = {
         sumA: item.a,
         sumB: item.b,
         weight: 1,
         toplamAdet: item.adet,
         kayitSayisi: 1,
-      });
+        byKonum: new Map(),
+      };
+      addKonum(c, item.konum, item.adet);
+      clusters.push(c);
     }
   }
 
@@ -97,12 +124,23 @@ export function groupSizesWithTolerance(
     .map((c) => {
       const en = roundCm(c.sumA / c.weight);
       const boy = roundCm(c.sumB / c.weight);
+      const konumlar: SizeLocationBreakdown[] = [...c.byKonum.entries()]
+        .map(([konum, v]) => ({
+          konum,
+          toplamAdet: v.toplamAdet,
+          kayitSayisi: v.kayitSayisi,
+        }))
+        .sort(
+          (a, b) =>
+            b.toplamAdet - a.toplamAdet || a.konum.localeCompare(b.konum, "tr")
+        );
       return {
         en,
         boy,
         label: `${en}×${boy}`,
         toplamAdet: c.toplamAdet,
         kayitSayisi: c.kayitSayisi,
+        konumlar,
       };
     })
     .sort((x, y) => x.en - y.en || x.boy - y.boy);

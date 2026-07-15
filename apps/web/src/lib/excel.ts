@@ -1,5 +1,7 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@magaza/database";
+import { groupSizesWithTolerance, type SizeInput } from "@/lib/size-groups";
+import { addSizeSummarySheet } from "@/lib/requests-excel";
 
 export async function generateExcelBuffer(storeId?: string) {
   const workbook = new ExcelJS.Workbook();
@@ -78,6 +80,8 @@ export async function generateExcelBuffer(storeId?: string) {
     { header: "Not", key: "note", width: 30 },
   ];
 
+  const sizeInputs: SizeInput[] = [];
+
   for (const store of stores) {
     for (const entry of store.avmEntries) {
       const sheet =
@@ -96,9 +100,13 @@ export async function generateExcelBuffer(storeId?: string) {
       }
 
       for (const vitrin of entry.vitrins) {
+        const tur = vitrin.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin";
+        const konum =
+          vitrin.konum?.trim() ||
+          (vitrin.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin");
         sheet.addRow({
           store: store.name,
-          tur: vitrin.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin",
+          tur,
           vitrinNo: vitrin.siraNo,
           konum: vitrin.konum ?? "",
           en: vitrin.en,
@@ -110,6 +118,23 @@ export async function generateExcelBuffer(storeId?: string) {
           gorsel: vitrin.gorselUrl ?? "",
           updated: vitrin.updatedAt.toISOString(),
         });
+        sizeInputs.push({
+          en: vitrin.en,
+          boy: vitrin.boy,
+          adet: 1,
+          konum,
+        });
+      }
+
+      for (const video of entry.videos) {
+        if (video.en != null && video.boy != null && video.en > 0 && video.boy > 0) {
+          sizeInputs.push({
+            en: video.en,
+            boy: video.boy,
+            adet: video.adet,
+            konum: video.placement.name,
+          });
+        }
       }
     }
 
@@ -123,6 +148,12 @@ export async function generateExcelBuffer(storeId?: string) {
         note: outdoor.note ?? "",
         gorsel: outdoor.gorselUrl ?? "",
         updated: outdoor.updatedAt.toISOString(),
+      });
+      sizeInputs.push({
+        en: outdoor.en,
+        boy: outdoor.boy,
+        adet: outdoor.adet,
+        konum: outdoor.subType.name,
       });
     }
 
@@ -138,6 +169,12 @@ export async function generateExcelBuffer(storeId?: string) {
         gorsel: signage.gorselUrl ?? "",
         updated: signage.updatedAt.toISOString(),
       });
+      sizeInputs.push({
+        en: signage.en,
+        boy: signage.boy,
+        adet: signage.adet,
+        konum: signage.placement.name,
+      });
     }
 
     for (const req of store.changeRequests) {
@@ -152,14 +189,23 @@ export async function generateExcelBuffer(storeId?: string) {
     }
   }
 
-  [ucretsizSheet, ucretliSheet, acikHavaSheet, magazaIciSheet, talepSheet].forEach((sheet) => {
-    sheet.getRow(1).font = { bold: true };
-    sheet.getRow(1).fill = {
-      type: "pattern",
-      pattern: "solid",
-      fgColor: { argb: "FFE2E8F0" },
-    };
-  });
+  [ucretsizSheet, ucretliSheet, acikHavaSheet, magazaIciSheet, talepSheet].forEach(
+    (sheet) => {
+      sheet.getRow(1).font = { bold: true };
+      sheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFE2E8F0" },
+      };
+    }
+  );
+
+  const groups = groupSizesWithTolerance(sizeInputs);
+  addSizeSummarySheet(
+    workbook,
+    groups,
+    storeId ? `Mağaza filtresi: ${storeId}` : "Tüm mağazalar"
+  );
 
   const buffer = await workbook.xlsx.writeBuffer();
   return buffer;

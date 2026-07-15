@@ -47,7 +47,8 @@ export function ExportPanel() {
             <Download className="mr-2 h-4 w-4" /> Excel İndir
           </Button>
           <p className="text-sm text-muted-foreground">
-            Dosyada AVM Ücretsiz, AVM Ücretli, Açık Hava, Mağaza İçi ve Talepler sayfaları bulunur (görsel URL metni).
+            Dosyada AVM Ücretsiz, AVM Ücretli, Açık Hava, Mağaza İçi, Talepler ve{" "}
+            <strong>Ölçü Özeti</strong> (±3 cm + konum kırılımı) sayfaları bulunur.
           </p>
         </CardContent>
       </Card>

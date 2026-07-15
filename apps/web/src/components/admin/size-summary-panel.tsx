@@ -21,8 +21,8 @@ export function SizeSummaryPanel({
       <div>
         <h2 className="font-semibold">{title}</h2>
         <p className="text-xs text-muted-foreground">
-          ±{SIZE_TOLERANCE_CM} cm kayma ile aynı ölçü sayılır · ortalama ölçü gösterilir · yön fark etmez
-          (120×180 = 180×120)
+          ±{SIZE_TOLERANCE_CM} cm kayma · ortalama ölçü · yön fark etmez · altında konum
+          adetleri
         </p>
       </div>
       {loading ? (
@@ -31,26 +31,27 @@ export function SizeSummaryPanel({
         <p className="text-sm text-muted-foreground">Ölçüsü olan kayıt yok.</p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-xl border">
-            <table className="w-full text-sm">
-              <thead className="bg-secondary/50 text-left">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Ölçü</th>
-                  <th className="px-3 py-2 font-medium">Toplam Adet</th>
-                  <th className="px-3 py-2 font-medium">Kayıt</th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((g) => (
-                  <tr key={g.label} className="border-t">
-                    <td className="px-3 py-2 font-medium">{g.label} cm</td>
-                    <td className="px-3 py-2">{g.toplamAdet}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{g.kayitSayisi}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ul className="space-y-3">
+            {groups.map((g) => (
+              <li key={g.label} className="rounded-xl border px-4 py-3">
+                <div className="font-medium">
+                  {g.label} cm → {g.toplamAdet} adet{" "}
+                  <span className="text-muted-foreground font-normal">
+                    ({g.kayitSayisi} kayıt)
+                  </span>
+                </div>
+                {(g.konumlar?.length ?? 0) > 0 && (
+                  <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                    {g.konumlar.map((k) => (
+                      <li key={`${g.label}-${k.konum}`}>
+                        · {k.konum} — {k.toplamAdet} adet
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
           <p className="text-xs text-muted-foreground">
             {groups.length} farklı ölçü · toplam {totalAdet} adet
           </p>

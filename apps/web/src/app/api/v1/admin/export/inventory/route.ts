@@ -22,6 +22,7 @@ export const GET = withAuth(
             en: Number(r.en),
             boy: Number(r.boy),
             adet: Number(r.adet) || 1,
+            konum: r.konum || null,
           }))
           .filter((r) => Number.isFinite(r.en) && Number.isFinite(r.boy) && r.en > 0 && r.boy > 0)
       );

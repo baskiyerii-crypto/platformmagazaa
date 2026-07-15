@@ -6,6 +6,7 @@ import {
   groupSizesWithTolerance,
   SIZE_TOLERANCE_CM,
   type SizeGroup,
+  type SizeInput,
 } from "@/lib/size-groups";
 
 export type RequestsExportFilters = {
@@ -35,19 +36,20 @@ export function addSizeSummarySheet(
 ) {
   const sheet = workbook.addWorksheet("Ölçü Özeti");
   sheet.columns = [
-    { header: "Ölçü (ort. 3 cm)", key: "olcu", width: 22 },
+    { header: "Ölçü / Konum", key: "olcu", width: 36 },
     { header: "En (cm)", key: "en", width: 12 },
     { header: "Boy (cm)", key: "boy", width: 12 },
-    { header: "Toplam Adet", key: "adet", width: 14 },
-    { header: "Kayıt Sayısı", key: "kayit", width: 14 },
+    { header: "Adet", key: "adet", width: 12 },
+    { header: "Kayıt", key: "kayit", width: 10 },
   ];
   styleHeader(sheet);
 
   if (titleNote) {
-    sheet.insertRow(1, [`Tolerans ±${SIZE_TOLERANCE_CM} cm · ${titleNote}`]);
+    sheet.insertRow(1, [
+      `Tolerans ±${SIZE_TOLERANCE_CM} cm · konum kırılımlı · ${titleNote}`,
+    ]);
     sheet.mergeCells(1, 1, 1, 5);
     sheet.getRow(1).font = { italic: true, size: 10 };
-    // header is now row 2
     const header = sheet.getRow(2);
     header.font = { bold: true };
     header.fill = {
@@ -58,13 +60,23 @@ export function addSizeSummarySheet(
   }
 
   for (const g of groups) {
-    sheet.addRow({
+    const sizeRow = sheet.addRow({
       olcu: `${g.label} cm`,
       en: g.en,
       boy: g.boy,
       adet: g.toplamAdet,
       kayit: g.kayitSayisi,
     });
+    sizeRow.font = { bold: true };
+    for (const k of g.konumlar ?? []) {
+      sheet.addRow({
+        olcu: `  · ${k.konum}`,
+        en: "",
+        boy: "",
+        adet: k.toplamAdet,
+        kayit: k.kayitSayisi,
+      });
+    }
   }
 
   sheet.addRow({});
@@ -89,7 +101,7 @@ export async function generateRequestsExcelBuffer(
   workbook.creator = "Mağaza Platform";
   workbook.created = new Date();
 
-  const sizeInputs: { en: number; boy: number; adet?: number | null }[] = [];
+  const sizeInputs: SizeInput[] = [];
 
   if (includeVisual) {
     const where: {
@@ -141,6 +153,7 @@ export async function generateRequestsExcelBuffer(
           en: target.en,
           boy: target.boy,
           adet: target.adet ?? 1,
+          konum: target.konum ?? target.placementName,
         });
       }
       sheet.addRow({
@@ -251,7 +264,7 @@ export async function fetchRequestSizeSummary(
     items.map((i) => ({ targetType: i.targetType, targetId: i.targetId }))
   );
 
-  const sizeInputs: { en: number; boy: number; adet?: number | null }[] = [];
+  const sizeInputs: SizeInput[] = [];
   for (const req of items) {
     const target = targetMap.get(`${req.targetType}:${req.targetId}`);
     if (target?.en != null && target?.boy != null) {
@@ -259,6 +272,7 @@ export async function fetchRequestSizeSummary(
         en: target.en,
         boy: target.boy,
         adet: target.adet ?? 1,
+        konum: target.konum ?? target.placementName,
       });
     }
   }
