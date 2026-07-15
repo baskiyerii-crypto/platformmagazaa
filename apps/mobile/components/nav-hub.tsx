@@ -1,6 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { colors, radius, spacing, shadow, CARD_TINTS } from "./theme";
+import { colors, radius, spacing, shadow } from "./theme";
 
 type NavItem = { href: string; label: string; desc?: string };
 
@@ -9,26 +9,16 @@ export function NavHub({ items }: { items: NavItem[] }) {
 
   return (
     <View style={hubStyles.grid}>
-      {items.map((item, i) => {
-        const tint = CARD_TINTS[i % CARD_TINTS.length];
-        return (
-          <Pressable
-            key={item.href}
-            style={({ pressed }) => [
-              hubStyles.card,
-              {
-                backgroundColor: tint.bg,
-                borderLeftColor: tint.accent,
-              },
-              pressed && hubStyles.cardPressed,
-            ]}
-            onPress={() => router.push(item.href as never)}
-          >
-            <Text style={hubStyles.title}>{item.label}</Text>
-            {item.desc ? <Text style={hubStyles.desc}>{item.desc}</Text> : null}
-          </Pressable>
-        );
-      })}
+      {items.map((item) => (
+        <Pressable
+          key={item.href}
+          style={({ pressed }) => [hubStyles.card, pressed && hubStyles.cardPressed]}
+          onPress={() => router.push(item.href as never)}
+        >
+          <Text style={hubStyles.title}>{item.label}</Text>
+          {item.desc ? <Text style={hubStyles.desc}>{item.desc}</Text> : null}
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -38,9 +28,9 @@ const hubStyles = StyleSheet.create({
   card: {
     padding: spacing.lg,
     borderRadius: radius.xl,
+    backgroundColor: colors.bgCard,
     borderWidth: 1,
     borderColor: colors.border,
-    borderLeftWidth: 4,
     ...shadow.card,
   },
   cardPressed: { opacity: 0.92, transform: [{ scale: 0.995 }] },

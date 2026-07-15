@@ -4,42 +4,28 @@
 
 @layer base {
   :root {
-    --background: 210 28% 94%;
-    --foreground: 222 47% 11%;
-    --card: 210 40% 99%;
-    --card-foreground: 222 47% 11%;
+    --background: 220 16% 96%;
+    --foreground: 222 28% 12%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 28% 12%;
     --primary: 221 83% 53%;
     --primary-foreground: 210 40% 98%;
-    --secondary: 214 32% 91%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 214 95% 93%;
-    --accent-foreground: 221 83% 40%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 28% 84%;
-    --input: 214 32% 91%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 222 28% 12%;
+    --muted: 220 14% 95%;
+    --muted-foreground: 220 10% 42%;
+    --accent: 221 70% 96%;
+    --accent-foreground: 221 70% 35%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 220 13% 90%;
+    --input: 220 13% 90%;
     --ring: 221 83% 53%;
-    --radius: 0.5rem;
-    --sidebar: 222 47% 11%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-muted: 215 16% 57%;
+    --radius: 0.75rem;
+    --sidebar: 222 32% 12%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-muted: 215 12% 55%;
     --sidebar-accent: 221 83% 53%;
-
-    /* Kart tonları — birbirinden ayrılsın */
-    --card-tint-1: 214 70% 96%;
-    --card-accent-1: 221 83% 53%;
-    --card-tint-2: 166 45% 94%;
-    --card-accent-2: 168 70% 32%;
-    --card-tint-3: 38 70% 95%;
-    --card-accent-3: 32 90% 45%;
-    --card-tint-4: 340 55% 96%;
-    --card-accent-4: 346 70% 48%;
-    --card-tint-5: 250 40% 96%;
-    --card-accent-5: 239 55% 48%;
-    --card-tint-6: 85 40% 94%;
-    --card-accent-6: 142 55% 35%;
   }
 
   * {
@@ -48,117 +34,30 @@
 
   body {
     @apply bg-background text-foreground antialiased;
-    background-image:
-      radial-gradient(ellipse 80% 50% at 0% 0%, hsl(214 70% 92% / 0.7), transparent),
-      radial-gradient(ellipse 60% 40% at 100% 0%, hsl(166 40% 92% / 0.5), transparent);
-    background-attachment: fixed;
   }
 }
 
 @layer components {
   .field-select {
-    @apply flex h-10 w-full rounded-lg border border-input bg-white/80 px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
+    @apply flex h-10 w-full rounded-xl border border-input bg-white px-3 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40;
   }
 
+  /* Modern kart: beyaz yüzey, yumuşak gölge, ince border — abartısız */
   .card-surface,
   .panel-section,
   .stat-card {
-    background-color: hsl(var(--card-tint-1));
-    border-color: hsl(var(--border));
-    border-left: 4px solid hsl(var(--card-accent-1));
-    box-shadow: 0 1px 2px hsl(222 47% 11% / 0.04), 0 4px 12px hsl(222 47% 11% / 0.04);
+    background-color: hsl(var(--card));
+    border: 1px solid hsl(var(--border));
+    box-shadow:
+      0 1px 2px hsl(222 28% 12% / 0.04),
+      0 8px 24px -8px hsl(222 28% 12% / 0.08);
   }
 
   .panel-section {
-    @apply rounded-xl border p-5;
+    @apply rounded-2xl p-5;
   }
 
   .stat-card {
-    @apply rounded-xl border p-5 transition-shadow hover:shadow-md;
-  }
-
-  /* Kardeş kartlara sırayla farklı ton */
-  .space-y-6 > [data-slot="card"]:nth-child(6n + 1),
-  .space-y-6 > .panel-section:nth-child(6n + 1),
-  .space-y-6 > .stat-card:nth-child(6n + 1),
-  .space-y-6 > .card-surface:nth-child(6n + 1),
-  .space-y-4 > [data-slot="card"]:nth-child(6n + 1),
-  .space-y-4 > .panel-section:nth-child(6n + 1),
-  .space-y-4 > .card-surface:nth-child(6n + 1),
-  .grid > [data-slot="card"]:nth-child(6n + 1),
-  .grid > .stat-card:nth-child(6n + 1),
-  .grid > .card-surface:nth-child(6n + 1) {
-    background-color: hsl(var(--card-tint-1));
-    border-left-color: hsl(var(--card-accent-1));
-  }
-
-  .space-y-6 > [data-slot="card"]:nth-child(6n + 2),
-  .space-y-6 > .panel-section:nth-child(6n + 2),
-  .space-y-6 > .stat-card:nth-child(6n + 2),
-  .space-y-6 > .card-surface:nth-child(6n + 2),
-  .space-y-4 > [data-slot="card"]:nth-child(6n + 2),
-  .space-y-4 > .panel-section:nth-child(6n + 2),
-  .space-y-4 > .card-surface:nth-child(6n + 2),
-  .grid > [data-slot="card"]:nth-child(6n + 2),
-  .grid > .stat-card:nth-child(6n + 2),
-  .grid > .card-surface:nth-child(6n + 2) {
-    background-color: hsl(var(--card-tint-2));
-    border-left-color: hsl(var(--card-accent-2));
-  }
-
-  .space-y-6 > [data-slot="card"]:nth-child(6n + 3),
-  .space-y-6 > .panel-section:nth-child(6n + 3),
-  .space-y-6 > .stat-card:nth-child(6n + 3),
-  .space-y-6 > .card-surface:nth-child(6n + 3),
-  .space-y-4 > [data-slot="card"]:nth-child(6n + 3),
-  .space-y-4 > .panel-section:nth-child(6n + 3),
-  .space-y-4 > .card-surface:nth-child(6n + 3),
-  .grid > [data-slot="card"]:nth-child(6n + 3),
-  .grid > .stat-card:nth-child(6n + 3),
-  .grid > .card-surface:nth-child(6n + 3) {
-    background-color: hsl(var(--card-tint-3));
-    border-left-color: hsl(var(--card-accent-3));
-  }
-
-  .space-y-6 > [data-slot="card"]:nth-child(6n + 4),
-  .space-y-6 > .panel-section:nth-child(6n + 4),
-  .space-y-6 > .stat-card:nth-child(6n + 4),
-  .space-y-6 > .card-surface:nth-child(6n + 4),
-  .space-y-4 > [data-slot="card"]:nth-child(6n + 4),
-  .space-y-4 > .panel-section:nth-child(6n + 4),
-  .space-y-4 > .card-surface:nth-child(6n + 4),
-  .grid > [data-slot="card"]:nth-child(6n + 4),
-  .grid > .stat-card:nth-child(6n + 4),
-  .grid > .card-surface:nth-child(6n + 4) {
-    background-color: hsl(var(--card-tint-4));
-    border-left-color: hsl(var(--card-accent-4));
-  }
-
-  .space-y-6 > [data-slot="card"]:nth-child(6n + 5),
-  .space-y-6 > .panel-section:nth-child(6n + 5),
-  .space-y-6 > .stat-card:nth-child(6n + 5),
-  .space-y-6 > .card-surface:nth-child(6n + 5),
-  .space-y-4 > [data-slot="card"]:nth-child(6n + 5),
-  .space-y-4 > .panel-section:nth-child(6n + 5),
-  .space-y-4 > .card-surface:nth-child(6n + 5),
-  .grid > [data-slot="card"]:nth-child(6n + 5),
-  .grid > .stat-card:nth-child(6n + 5),
-  .grid > .card-surface:nth-child(6n + 5) {
-    background-color: hsl(var(--card-tint-5));
-    border-left-color: hsl(var(--card-accent-5));
-  }
-
-  .space-y-6 > [data-slot="card"]:nth-child(6n + 6),
-  .space-y-6 > .panel-section:nth-child(6n + 6),
-  .space-y-6 > .stat-card:nth-child(6n + 6),
-  .space-y-6 > .card-surface:nth-child(6n + 6),
-  .space-y-4 > [data-slot="card"]:nth-child(6n + 6),
-  .space-y-4 > .panel-section:nth-child(6n + 6),
-  .space-y-4 > .card-surface:nth-child(6n + 6),
-  .grid > [data-slot="card"]:nth-child(6n + 6),
-  .grid > .stat-card:nth-child(6n + 6),
-  .grid > .card-surface:nth-child(6n + 6) {
-    background-color: hsl(var(--card-tint-6));
-    border-left-color: hsl(var(--card-accent-6));
+    @apply rounded-2xl p-5 transition-shadow hover:shadow-md;
   }
 }

@@ -30,18 +30,8 @@ export const colors = {
   destructive: APP_THEME.destructive,
   loginBg: APP_THEME.loginBg,
   loginBgMid: APP_THEME.loginBgMid,
-  shadow: "rgba(37, 99, 235, 0.12)",
+  shadow: "rgba(15, 23, 42, 0.08)",
 };
-
-/** Sırayla dönen kart zemin + sol şerit — birbirinden ayrılsın */
-export const CARD_TINTS = [
-  { bg: "#EAF2FF", accent: "#2563EB" },
-  { bg: "#E8F8F4", accent: "#0F766E" },
-  { bg: "#FFF6E8", accent: "#D97706" },
-  { bg: "#FCEEF2", accent: "#E11D48" },
-  { bg: "#F0EEFF", accent: "#4F46E5" },
-  { bg: "#F0F9E8", accent: "#16A34A" },
-] as const;
 
 export const spacing = {
   xs: 4,
@@ -60,10 +50,10 @@ export const radius = {
 
 export const shadow = {
   card: {
-    shadowColor: APP_THEME.foreground,
-    shadowOffset: { width: 0, height: 2 },
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowRadius: 12,
+    elevation: 3,
   },
 };

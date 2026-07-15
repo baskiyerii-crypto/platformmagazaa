@@ -9,15 +9,13 @@ import {
   Platform,
   StyleSheet,
 } from "react-native";
-import { ReactNode, useMemo } from "react";
+import { ReactNode } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppHeader } from "./app-header";
 import { NotificationBell } from "./notification-bell";
 import { DeveloperFooter } from "./developer-footer";
 import type { MenuItem } from "@/lib/menus";
-import { colors, radius, spacing, shadow, CARD_TINTS } from "./theme";
-
-let cardSeq = 0;
+import { colors, radius, spacing, shadow } from "./theme";
 
 export function Screen({
   children,
@@ -58,26 +56,7 @@ export function Screen({
 }
 
 export function Card({ children }: { children: ReactNode }) {
-  const tint = useMemo(() => {
-    const t = CARD_TINTS[cardSeq % CARD_TINTS.length];
-    cardSeq += 1;
-    return t;
-  }, []);
-
-  return (
-    <View
-      style={[
-        styles.card,
-        {
-          backgroundColor: tint.bg,
-          borderLeftColor: tint.accent,
-          borderLeftWidth: 4,
-        },
-      ]}
-    >
-      {children}
-    </View>
-  );
+  return <View style={styles.card}>{children}</View>;
 }
 
 export function PrimaryButton({
@@ -156,17 +135,11 @@ export function InputField({
 }
 
 export function StatCard({ label, value }: { label: string; value: number | string }) {
-  const tint = useMemo(() => {
-    const t = CARD_TINTS[cardSeq % CARD_TINTS.length];
-    cardSeq += 1;
-    return t;
-  }, []);
-
   return (
-    <View style={[styles.statCard, { backgroundColor: tint.bg, borderLeftColor: tint.accent, borderLeftWidth: 4 }]}>
-      <View style={[styles.statAccent, { backgroundColor: tint.accent }]} />
+    <View style={styles.statCard}>
+      <View style={styles.statAccent} />
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, { color: tint.accent }]}>{value}</Text>
+      <Text style={styles.statValue}>{value}</Text>
     </View>
   );
 }
@@ -198,7 +171,7 @@ export const styles = StyleSheet.create({
     borderRadius: radius.xl,
     backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
     ...shadow.card,
   },
   primaryBtn: {
@@ -238,7 +211,7 @@ export const styles = StyleSheet.create({
     borderRadius: radius.lg,
     backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: colors.borderLight,
+    borderColor: colors.border,
     overflow: "hidden",
     ...shadow.card,
   },
