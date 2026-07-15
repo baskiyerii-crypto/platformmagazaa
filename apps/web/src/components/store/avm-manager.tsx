@@ -140,6 +140,7 @@ export function AvmManager({
 
   async function submitVitrinOrExtra(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     const kind = sectionTab === "EKSTRA_ALAN" ? "EKSTRA_ALAN" : "VITRIN";
     if (vitrinForms.some((v) => !v.file)) {
       alert("Her kayıt için fotoğraf zorunludur.");
@@ -150,97 +151,107 @@ export function AvmManager({
       return;
     }
     setLoading(true);
-    const formData = new FormData();
-    if (storeId) formData.append("storeId", storeId);
-    formData.append("subTypeId", subTypeId);
-    formData.append(
-      "vitrins",
-      JSON.stringify(
-        vitrinForms.map((v) => ({
-          kind,
-          siraNo: v.siraNo,
-          en: Number(v.en),
-          boy: Number(v.boy),
-          camEn: kind === "VITRIN" && v.camEn ? Number(v.camEn) : null,
-          camBoy: kind === "VITRIN" && v.camBoy ? Number(v.camBoy) : null,
-          konum: kind === "EKSTRA_ALAN" ? v.konum.trim() : null,
-        }))
-      )
-    );
-    formData.append("videos", "[]");
-    vitrinForms.forEach((v, i) => {
-      if (v.file) formData.append(`vitrinFile_${i}`, v.file);
-    });
-    const res = await fetch("/api/v1/store/avm-entries", { method: "POST", body: formData });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Kayıt eklenemedi.");
+    try {
+      const formData = new FormData();
+      if (storeId) formData.append("storeId", storeId);
+      formData.append("subTypeId", subTypeId);
+      formData.append(
+        "vitrins",
+        JSON.stringify(
+          vitrinForms.map((v) => ({
+            kind,
+            siraNo: v.siraNo,
+            en: Number(v.en),
+            boy: Number(v.boy),
+            camEn: kind === "VITRIN" && v.camEn ? Number(v.camEn) : null,
+            camBoy: kind === "VITRIN" && v.camBoy ? Number(v.camBoy) : null,
+            konum: kind === "EKSTRA_ALAN" ? v.konum.trim() : null,
+          }))
+        )
+      );
+      formData.append("videos", "[]");
+      vitrinForms.forEach((v, i) => {
+        if (v.file) formData.append(`vitrinFile_${i}`, v.file);
+      });
+      const res = await fetch("/api/v1/store/avm-entries", { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Kayıt eklenemedi.");
+        return;
+      }
+      setVitrinForms([emptyVitrinForm()]);
+      if (formOnly) onSuccess?.();
+      else await load();
+    } finally {
       setLoading(false);
-      return;
     }
-    setVitrinForms([emptyVitrinForm()]);
-    if (formOnly) onSuccess?.();
-    else await load();
-    setLoading(false);
   }
 
   async function submitVideo(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     if (videos.length === 0) {
       alert("En az bir video kaydı ekleyin.");
       return;
     }
     setLoading(true);
-    const formData = new FormData();
-    if (storeId) formData.append("storeId", storeId);
-    formData.append("subTypeId", subTypeId);
-    formData.append("vitrins", "[]");
-    formData.append(
-      "videos",
-      JSON.stringify(
-        videos.map((v) => ({
-          placementId: v.placementId,
-          adet: Number(v.adet),
-          en: v.en ? Number(v.en) : null,
-          boy: v.boy ? Number(v.boy) : null,
-        }))
-      )
-    );
-    const res = await fetch("/api/v1/store/avm-entries", { method: "POST", body: formData });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Video kaydı eklenemedi.");
+    try {
+      const formData = new FormData();
+      if (storeId) formData.append("storeId", storeId);
+      formData.append("subTypeId", subTypeId);
+      formData.append("vitrins", "[]");
+      formData.append(
+        "videos",
+        JSON.stringify(
+          videos.map((v) => ({
+            placementId: v.placementId,
+            adet: Number(v.adet),
+            en: v.en ? Number(v.en) : null,
+            boy: v.boy ? Number(v.boy) : null,
+          }))
+        )
+      );
+      const res = await fetch("/api/v1/store/avm-entries", { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Video kaydı eklenemedi.");
+        return;
+      }
+      setVideos([]);
+      if (formOnly) onSuccess?.();
+      else await load();
+    } finally {
       setLoading(false);
-      return;
     }
-    setVideos([]);
-    if (formOnly) onSuccess?.();
-    else await load();
-    setLoading(false);
   }
 
   async function saveEdit() {
-    if (!editVitrin) return;
-    if (editFile) {
-      const fd = new FormData();
-      fd.append("file", editFile);
-      await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, { method: "PATCH", body: fd });
+    if (!editVitrin || loading) return;
+    setLoading(true);
+    try {
+      if (editFile) {
+        const fd = new FormData();
+        fd.append("file", editFile);
+        await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, { method: "PATCH", body: fd });
+      }
+      await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          vitrinId: editVitrin.id,
+          en: Number(editEn),
+          boy: Number(editBoy),
+          camEn: editVitrin.kind === "VITRIN" && editCamEn ? Number(editCamEn) : null,
+          camBoy: editVitrin.kind === "VITRIN" && editCamBoy ? Number(editCamBoy) : null,
+          konum: editVitrin.kind === "EKSTRA_ALAN" ? editKonum.trim() : null,
+        }),
+      });
+      setEditVitrin(null);
+      setEditFile(null);
+      await load();
+    } finally {
+      setLoading(false);
     }
-    await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        vitrinId: editVitrin.id,
-        en: Number(editEn),
-        boy: Number(editBoy),
-        camEn: editVitrin.kind === "VITRIN" && editCamEn ? Number(editCamEn) : null,
-        camBoy: editVitrin.kind === "VITRIN" && editCamBoy ? Number(editCamBoy) : null,
-        konum: editVitrin.kind === "EKSTRA_ALAN" ? editKonum.trim() : null,
-      }),
-    });
-    setEditVitrin(null);
-    setEditFile(null);
-    load();
   }
 
   async function deleteVitrin(id: string, label: string) {
@@ -550,8 +561,8 @@ export function AvmManager({
               </>
             )}
             <ImageUploadPreview existingUrl={editVitrin?.gorselUrl} file={editFile} onFileChange={setEditFile} />
-            <Button onClick={saveEdit} className="w-full">
-              Kaydet
+            <Button onClick={saveEdit} className="w-full" disabled={loading}>
+              {loading ? "Kaydediliyor..." : "Kaydet"}
             </Button>
           </div>
         </DialogContent>

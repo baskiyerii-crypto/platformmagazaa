@@ -53,6 +53,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
   const [editAdet, setEditAdet] = useState("");
   const [editNote, setEditNote] = useState("");
   const [changeId, setChangeId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   async function load() {
     const entriesUrl =
@@ -80,6 +81,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     if (!file) {
       alert("Fotoğraf zorunlu");
       return;
@@ -88,50 +90,60 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
       alert("Konum seçin");
       return;
     }
-    const formData = new FormData();
-    if (storeId) formData.append("storeId", storeId);
-    formData.append("subTypeId", subTypeId);
-    formData.append("placementId", placementId);
-    formData.append("en", en);
-    formData.append("boy", boy);
-    formData.append("adet", adet);
-    formData.append("note", note);
-    formData.append("file", file);
-    const res = await fetch("/api/v1/store/signage-entries", { method: "POST", body: formData });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err.error ?? "Kayıt eklenemedi.");
-      return;
-    }
-    setEn(""); setBoy(""); setAdet("1"); setNote(""); setFile(null);
-    if (formOnly) {
-      onSuccess?.();
-    } else {
-      load();
+    setSubmitting(true);
+    try {
+      const formData = new FormData();
+      if (storeId) formData.append("storeId", storeId);
+      formData.append("subTypeId", subTypeId);
+      formData.append("placementId", placementId);
+      formData.append("en", en);
+      formData.append("boy", boy);
+      formData.append("adet", adet);
+      formData.append("note", note);
+      formData.append("file", file);
+      const res = await fetch("/api/v1/store/signage-entries", { method: "POST", body: formData });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Kayıt eklenemedi.");
+        return;
+      }
+      setEn(""); setBoy(""); setAdet("1"); setNote(""); setFile(null);
+      if (formOnly) {
+        onSuccess?.();
+      } else {
+        await load();
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
 
   async function saveEdit() {
-    if (!editEntry) return;
-    if (editFile) {
-      const fd = new FormData();
-      fd.append("file", editFile);
-      await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, { method: "PATCH", body: fd });
+    if (!editEntry || submitting) return;
+    setSubmitting(true);
+    try {
+      if (editFile) {
+        const fd = new FormData();
+        fd.append("file", editFile);
+        await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, { method: "PATCH", body: fd });
+      }
+      await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placementId: editPlacementId,
+          en: Number(editEn),
+          boy: Number(editBoy),
+          adet: Number(editAdet),
+          note: editNote || null,
+        }),
+      });
+      setEditEntry(null);
+      setEditFile(null);
+      await load();
+    } finally {
+      setSubmitting(false);
     }
-    await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        placementId: editPlacementId,
-        en: Number(editEn),
-        boy: Number(editBoy),
-        adet: Number(editAdet),
-        note: editNote || null,
-      }),
-    });
-    setEditEntry(null);
-    setEditFile(null);
-    load();
   }
 
   async function deleteEntry(id: string) {
@@ -212,7 +224,9 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
             <div className="md:col-span-2">
               <ImageUploadPreview file={file} onFileChange={setFile} required />
             </div>
-            <Button type="submit" className="md:col-span-2" disabled={noTypes || noPlacements}>Kaydet</Button>
+            <Button type="submit" className="md:col-span-2" disabled={submitting || noTypes || noPlacements}>
+              {submitting ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
           </form>
         </CardContent>
       </Card>
@@ -266,7 +280,9 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
             <Input value={editAdet} onChange={(e) => setEditAdet(e.target.value)} placeholder="Adet" />
             <Input value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder="Not" />
             <ImageUploadPreview existingUrl={editEntry?.gorselUrl} file={editFile} onFileChange={setEditFile} />
-            <Button onClick={saveEdit} className="w-full">Kaydet</Button>
+            <Button onClick={saveEdit} className="w-full" disabled={submitting}>
+              {submitting ? "Kaydediliyor..." : "Kaydet"}
+            </Button>
           </div>
         </DialogContent>
       </DialogRoot>

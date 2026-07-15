@@ -28,6 +28,7 @@ export default function StoreOutdoor() {
   const [adet, setAdet] = useState("1");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editEntry, setEditEntry] = useState<OutdoorEntry | null>(null);
   const [editEn, setEditEn] = useState("");
   const [editBoy, setEditBoy] = useState("");
@@ -55,6 +56,7 @@ export default function StoreOutdoor() {
   }, []);
 
   async function saveWithPhoto() {
+    if (saving) return;
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       Alert.alert("İzin gerekli", "Kamera izni verilmeli");
@@ -64,36 +66,41 @@ export default function StoreOutdoor() {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true });
     if (result.canceled || !result.assets[0]) return;
 
-    const formData = new FormData();
-    formData.append("subTypeId", subTypeId);
-    formData.append("en", en);
-    formData.append("boy", boy);
-    formData.append("adet", adet);
-    formData.append("note", note);
-    formData.append("file", {
-      uri: result.assets[0].uri,
-      name: "photo.jpg",
-      type: "image/jpeg",
-    } as unknown as Blob);
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("subTypeId", subTypeId);
+      formData.append("en", en);
+      formData.append("boy", boy);
+      formData.append("adet", adet);
+      formData.append("note", note);
+      formData.append("file", {
+        uri: result.assets[0].uri,
+        name: "photo.jpg",
+        type: "image/jpeg",
+      } as unknown as Blob);
 
-    const token = await getToken();
-    const res = await fetch(`${API_URL}/api/v1/store/outdoor-entries`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
+      const token = await getToken();
+      const res = await fetch(`${API_URL}/api/v1/store/outdoor-entries`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
 
-    if (!res.ok) {
-      Alert.alert("Hata", "Kayıt başarısız");
-      return;
+      if (!res.ok) {
+        Alert.alert("Hata", "Kayıt başarısız");
+        return;
+      }
+
+      setEn("");
+      setBoy("");
+      setAdet("1");
+      setNote("");
+      await load();
+      Alert.alert("Başarılı", "Açık hava kaydı eklendi");
+    } finally {
+      setSaving(false);
     }
-
-    setEn("");
-    setBoy("");
-    setAdet("1");
-    setNote("");
-    load();
-    Alert.alert("Başarılı", "Açık hava kaydı eklendi");
   }
 
   function openEdit(entry: OutdoorEntry) {
@@ -105,7 +112,8 @@ export default function StoreOutdoor() {
   }
 
   async function saveEdit() {
-    if (!editEntry) return;
+    if (!editEntry || saving) return;
+    setSaving(true);
     try {
       await api.patch(`/api/v1/store/outdoor-entries/${editEntry.id}`, {
         en: Number(editEn),
@@ -114,9 +122,11 @@ export default function StoreOutdoor() {
         note: editNote || null,
       });
       setEditEntry(null);
-      load();
+      await load();
     } catch (e) {
       Alert.alert("Hata", e instanceof Error ? e.message : "Güncellenemedi");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -195,7 +205,7 @@ export default function StoreOutdoor() {
             <InputField label="Boy (cm)" value={boy} onChangeText={setBoy} keyboardType="numeric" />
             <InputField label="Adet" value={adet} onChangeText={setAdet} keyboardType="numeric" />
             <InputField label="Not" value={note} onChangeText={setNote} />
-            <PrimaryButton label="Fotoğraf Çek ve Kaydet" onPress={saveWithPhoto} />
+            <PrimaryButton label="Fotoğraf Çek ve Kaydet" onPress={saveWithPhoto} loading={saving} />
           </Card>
         }
         renderItem={({ item: entry }) => (
@@ -223,7 +233,7 @@ export default function StoreOutdoor() {
             <InputField label="Boy" value={editBoy} onChangeText={setEditBoy} keyboardType="numeric" />
             <InputField label="Adet" value={editAdet} onChangeText={setEditAdet} keyboardType="numeric" />
             <InputField label="Not" value={editNote} onChangeText={setEditNote} />
-            <PrimaryButton label="Kaydet" onPress={saveEdit} />
+            <PrimaryButton label="Kaydet" onPress={saveEdit} loading={saving} />
             <View style={{ marginTop: spacing.sm }}>
               <SecondaryButton label="Görseli Değiştir" onPress={changePhoto} />
             </View>

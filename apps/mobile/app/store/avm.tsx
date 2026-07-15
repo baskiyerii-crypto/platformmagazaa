@@ -48,6 +48,7 @@ export default function StoreAvm() {
   const [camBoy, setCamBoy] = useState("");
   const [konum, setKonum] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editItem, setEditItem] = useState<VitrinItem | null>(null);
   const [editEn, setEditEn] = useState("");
   const [editBoy, setEditBoy] = useState("");
@@ -87,6 +88,7 @@ export default function StoreAvm() {
   const kind: AvmVitrinKind = sectionTab === "EKSTRA_ALAN" ? "EKSTRA_ALAN" : "VITRIN";
 
   async function saveWithPhoto() {
+    if (saving) return;
     if (!en || !boy) {
       Alert.alert("Eksik bilgi", "En ve boy zorunludur");
       return;
@@ -105,49 +107,54 @@ export default function StoreAvm() {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true });
     if (result.canceled || !result.assets[0]) return;
 
-    const formData = new FormData();
-    formData.append("subTypeId", subTypeId);
-    formData.append(
-      "vitrins",
-      JSON.stringify([
-        {
-          kind,
-          siraNo: 1,
-          en: Number(en),
-          boy: Number(boy),
-          camEn: kind === "VITRIN" && camEn ? Number(camEn) : null,
-          camBoy: kind === "VITRIN" && camBoy ? Number(camBoy) : null,
-          konum: kind === "EKSTRA_ALAN" ? konum.trim() : null,
-        },
-      ])
-    );
-    formData.append("videos", "[]");
-    formData.append("vitrinFile_0", {
-      uri: result.assets[0].uri,
-      name: "photo.jpg",
-      type: "image/jpeg",
-    } as unknown as Blob);
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("subTypeId", subTypeId);
+      formData.append(
+        "vitrins",
+        JSON.stringify([
+          {
+            kind,
+            siraNo: 1,
+            en: Number(en),
+            boy: Number(boy),
+            camEn: kind === "VITRIN" && camEn ? Number(camEn) : null,
+            camBoy: kind === "VITRIN" && camBoy ? Number(camBoy) : null,
+            konum: kind === "EKSTRA_ALAN" ? konum.trim() : null,
+          },
+        ])
+      );
+      formData.append("videos", "[]");
+      formData.append("vitrinFile_0", {
+        uri: result.assets[0].uri,
+        name: "photo.jpg",
+        type: "image/jpeg",
+      } as unknown as Blob);
 
-    const token = await getToken();
-    const res = await fetch(`${API_URL}/api/v1/store/avm-entries`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
+      const token = await getToken();
+      const res = await fetch(`${API_URL}/api/v1/store/avm-entries`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      Alert.alert("Hata", err.error ?? "Kayıt başarısız");
-      return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Hata", err.error ?? "Kayıt başarısız");
+        return;
+      }
+
+      setEn("");
+      setBoy("");
+      setCamEn("");
+      setCamBoy("");
+      setKonum("");
+      await load();
+      Alert.alert("Başarılı", "Kayıt eklendi");
+    } finally {
+      setSaving(false);
     }
-
-    setEn("");
-    setBoy("");
-    setCamEn("");
-    setCamBoy("");
-    setKonum("");
-    load();
-    Alert.alert("Başarılı", "Kayıt eklendi");
   }
 
   function openEdit(v: VitrinItem) {
@@ -160,7 +167,8 @@ export default function StoreAvm() {
   }
 
   async function saveEdit() {
-    if (!editItem) return;
+    if (!editItem || saving) return;
+    setSaving(true);
     try {
       await api.patch(`/api/v1/store/avm-vitrins/${editItem.id}`, {
         vitrinId: editItem.id,
@@ -171,9 +179,11 @@ export default function StoreAvm() {
         konum: editItem.kind === "EKSTRA_ALAN" ? editKonum.trim() : null,
       });
       setEditItem(null);
-      load();
+      await load();
     } catch (e) {
       Alert.alert("Hata", e instanceof Error ? e.message : "Güncellenemedi");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -269,7 +279,7 @@ export default function StoreAvm() {
               <InputField label="Cam Boy (cm)" value={camBoy} onChangeText={setCamBoy} keyboardType="numeric" placeholder="Opsiyonel" />
             </>
           )}
-          <PrimaryButton label="Fotoğraf Çek ve Kaydet" onPress={saveWithPhoto} />
+          <PrimaryButton label="Fotoğraf Çek ve Kaydet" onPress={saveWithPhoto} loading={saving} />
         </Card>
 
         {loading ? (
@@ -314,7 +324,7 @@ export default function StoreAvm() {
                 <InputField label="Cam Boy" value={editCamBoy} onChangeText={setEditCamBoy} keyboardType="numeric" />
               </>
             )}
-            <PrimaryButton label="Kaydet" onPress={saveEdit} />
+            <PrimaryButton label="Kaydet" onPress={saveEdit} loading={saving} />
             <View style={{ marginTop: spacing.sm }}>
               <SecondaryButton label="Görseli Değiştir" onPress={changePhoto} />
             </View>

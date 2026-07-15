@@ -31,6 +31,7 @@ export default function StoreSignage() {
   const [adet, setAdet] = useState("1");
   const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [editEntry, setEditEntry] = useState<SignageEntry | null>(null);
   const [editPlacementId, setEditPlacementId] = useState("");
   const [editEn, setEditEn] = useState("");
@@ -61,6 +62,7 @@ export default function StoreSignage() {
   }, []);
 
   async function saveWithPhoto() {
+    if (saving) return;
     if (!placementId) {
       Alert.alert("Hata", "Konum seçin");
       return;
@@ -74,38 +76,43 @@ export default function StoreSignage() {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true });
     if (result.canceled || !result.assets[0]) return;
 
-    const formData = new FormData();
-    formData.append("subTypeId", subTypeId);
-    formData.append("placementId", placementId);
-    formData.append("en", en);
-    formData.append("boy", boy);
-    formData.append("adet", adet);
-    formData.append("note", note);
-    formData.append("file", {
-      uri: result.assets[0].uri,
-      name: "photo.jpg",
-      type: "image/jpeg",
-    } as unknown as Blob);
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("subTypeId", subTypeId);
+      formData.append("placementId", placementId);
+      formData.append("en", en);
+      formData.append("boy", boy);
+      formData.append("adet", adet);
+      formData.append("note", note);
+      formData.append("file", {
+        uri: result.assets[0].uri,
+        name: "photo.jpg",
+        type: "image/jpeg",
+      } as unknown as Blob);
 
-    const token = await getToken();
-    const res = await fetch(`${API_URL}/api/v1/store/signage-entries`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
+      const token = await getToken();
+      const res = await fetch(`${API_URL}/api/v1/store/signage-entries`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      Alert.alert("Hata", (err as { error?: string }).error ?? "Kayıt başarısız");
-      return;
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Hata", (err as { error?: string }).error ?? "Kayıt başarısız");
+        return;
+      }
+
+      setEn("");
+      setBoy("");
+      setAdet("1");
+      setNote("");
+      await load();
+      Alert.alert("Başarılı", "Mağaza içi kayıt eklendi");
+    } finally {
+      setSaving(false);
     }
-
-    setEn("");
-    setBoy("");
-    setAdet("1");
-    setNote("");
-    load();
-    Alert.alert("Başarılı", "Mağaza içi kayıt eklendi");
   }
 
   function openEdit(entry: SignageEntry) {
@@ -118,7 +125,8 @@ export default function StoreSignage() {
   }
 
   async function saveEdit() {
-    if (!editEntry) return;
+    if (!editEntry || saving) return;
+    setSaving(true);
     try {
       await api.patch(`/api/v1/store/signage-entries/${editEntry.id}`, {
         placementId: editPlacementId,
@@ -128,9 +136,11 @@ export default function StoreSignage() {
         note: editNote || null,
       });
       setEditEntry(null);
-      load();
+      await load();
     } catch (e) {
       Alert.alert("Hata", e instanceof Error ? e.message : "Güncellenemedi");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -230,7 +240,7 @@ export default function StoreSignage() {
             <InputField label="Boy (cm)" value={boy} onChangeText={setBoy} keyboardType="numeric" />
             <InputField label="Adet" value={adet} onChangeText={setAdet} keyboardType="numeric" />
             <InputField label="Not" value={note} onChangeText={setNote} />
-            <PrimaryButton label="Fotoğraf Çek ve Kaydet" onPress={saveWithPhoto} />
+            <PrimaryButton label="Fotoğraf Çek ve Kaydet" onPress={saveWithPhoto} loading={saving} />
           </Card>
         }
         renderItem={({ item: entry }) => (
@@ -271,7 +281,7 @@ export default function StoreSignage() {
             <InputField label="Boy" value={editBoy} onChangeText={setEditBoy} keyboardType="numeric" />
             <InputField label="Adet" value={editAdet} onChangeText={setEditAdet} keyboardType="numeric" />
             <InputField label="Not" value={editNote} onChangeText={setEditNote} />
-            <PrimaryButton label="Kaydet" onPress={saveEdit} />
+            <PrimaryButton label="Kaydet" onPress={saveEdit} loading={saving} />
             <View style={{ marginTop: spacing.sm }}>
               <SecondaryButton label="Görseli Değiştir" onPress={changePhoto} />
             </View>

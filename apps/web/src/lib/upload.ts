@@ -8,6 +8,12 @@ const UPLOAD_DIR = process.env.UPLOAD_DIR ?? "./uploads";
 const MAX_SIZE = 10 * 1024 * 1024;
 const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
+function resolveUploadDir() {
+  return path.isAbsolute(UPLOAD_DIR)
+    ? UPLOAD_DIR
+    : path.join(process.cwd(), UPLOAD_DIR);
+}
+
 export type SaveUploadOptions = {
   category?: MediaCategory;
   storeId?: string | null;
@@ -31,7 +37,7 @@ export async function saveUploadedFile(
   const id = randomUUID();
   const filename = `${id}.webp`;
   const thumbFilename = `${id}_thumb.webp`;
-  const uploadPath = path.join(process.cwd(), UPLOAD_DIR);
+  const uploadPath = resolveUploadDir();
   await mkdir(uploadPath, { recursive: true });
 
   const resized = await sharp(buffer)
@@ -81,7 +87,7 @@ export async function deleteUploadedFile(urlOrFilename: string) {
 }
 
 export function getUploadDir() {
-  return path.join(process.cwd(), UPLOAD_DIR);
+  return resolveUploadDir();
 }
 
 export function resolveUploadPath(filename: string, size?: "thumb" | "full") {
