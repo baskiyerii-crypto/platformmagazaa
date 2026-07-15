@@ -35,6 +35,8 @@ const STATUS_COLORS: Record<AnnouncementReceiptStatus, string> = {
   TAMAMLANDI: "#bbf7d0",
 };
 
+const TILE = { width: 80, height: 80, borderRadius: 8 } as const;
+
 export default function StoreAnnouncements() {
   const [items, setItems] = useState<Announcement[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -94,7 +96,7 @@ export default function StoreAnnouncements() {
         const existing =
           items.find((x) => x.id === id)?.receipt?.completionImages?.length ?? 0;
         if (!files?.length && !existing) {
-          Alert.alert("Görsel gerekli", "Tamamlama için en az bir fotoğraf seçin");
+          Alert.alert("Görsel gerekli", "Tamamlama için + ile en az bir fotoğraf ekleyin");
           return;
         }
         const form = new FormData();
@@ -184,16 +186,16 @@ export default function StoreAnnouncements() {
     }
   }
 
-  async function addImages(id: string) {
+  /** + kutusu: kayıtlı yoksa tamamla+yükle, varsa sadece ekle */
+  async function onPlusPress(id: string, status: AnnouncementReceiptStatus, imageCount: number) {
+    if (loadingId) return;
     const assets = await pickImages(true);
     if (!assets) return;
+    if (status === "ISLEME_ALINDI" && imageCount === 0) {
+      await postStatus(id, "TAMAMLANDI", assets);
+      return;
+    }
     await patchImages(id, "ADD_IMAGES", { files: assets });
-  }
-
-  async function completeWithPhotos(id: string) {
-    const assets = await pickImages(true);
-    if (!assets) return;
-    await postStatus(id, "TAMAMLANDI", assets);
   }
 
   async function removeImage(id: string, imageUrl: string) {
@@ -239,17 +241,20 @@ export default function StoreAnnouncements() {
                 </Text>
               ))}
 
-            {images.length > 0 && (
-              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                {images.map((url) => (
-                  <View key={url} style={{ width: 80 }}>
-                    <Image
-                      source={{ uri: `${API_URL}${thumbUrl(url)!}` }}
-                      style={{ width: 80, height: 80, borderRadius: 8 }}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                    />
-                    {canManage && (
+            {canManage && (
+              <View style={{ marginTop: 12, gap: 8 }}>
+                <Text style={{ fontSize: 13, fontWeight: "600", color: colors.textMuted }}>
+                  Tamamlama görselleri — + ile ekleyin
+                </Text>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                  {images.map((url) => (
+                    <View key={url} style={{ width: TILE.width }}>
+                      <Image
+                        source={{ uri: `${API_URL}${thumbUrl(url)!}` }}
+                        style={TILE}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                      />
                       <View style={{ marginTop: 4, gap: 4 }}>
                         <Pressable
                           disabled={busy}
@@ -266,9 +271,51 @@ export default function StoreAnnouncements() {
                           <Text style={{ textAlign: "center", fontSize: 11, color: "#991b1b" }}>Sil</Text>
                         </Pressable>
                       </View>
-                    )}
-                  </View>
-                ))}
+                    </View>
+                  ))}
+
+                  <Pressable
+                    disabled={busy}
+                    onPress={() => onPlusPress(a.id, status, images.length)}
+                    style={{
+                      ...TILE,
+                      borderWidth: 2,
+                      borderStyle: "dashed",
+                      borderColor: colors.primary,
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: "#f8fafc",
+                      opacity: busy ? 0.5 : 1,
+                    }}
+                  >
+                    <Text style={{ fontSize: 28, color: colors.primary, lineHeight: 32 }}>+</Text>
+                    <Text style={{ fontSize: 10, color: colors.primary }}>Ekle</Text>
+                  </Pressable>
+                </View>
+
+                {status === "ISLEME_ALINDI" && images.length > 0 && (
+                  <PrimaryButton
+                    label={busy ? "..." : "Görsel ile tamamla"}
+                    onPress={() => postStatus(a.id, "TAMAMLANDI")}
+                    loading={busy}
+                  />
+                )}
+
+                <SecondaryButton
+                  label={busy ? "Bekleyin..." : "Kamera ile ekle"}
+                  onPress={async () => {
+                    if (busy) return;
+                    const permission = await ImagePicker.requestCameraPermissionsAsync();
+                    if (!permission.granted) return Alert.alert("İzin gerekli");
+                    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+                    if (result.canceled || !result.assets[0]) return;
+                    if (status === "ISLEME_ALINDI" && images.length === 0) {
+                      await postStatus(a.id, "TAMAMLANDI", result.assets);
+                    } else {
+                      await patchImages(a.id, "ADD_IMAGES", { files: result.assets });
+                    }
+                  }}
+                />
               </View>
             )}
 
@@ -287,64 +334,6 @@ export default function StoreAnnouncements() {
                     if (!busy) postStatus(a.id, "ISLEME_ALINDI");
                   }}
                 />
-              )}
-              {status === "ISLEME_ALINDI" && (
-                <>
-                  <PrimaryButton
-                    label={busy ? "Yükleniyor..." : "Galeriden seç ve tamamla (toplu)"}
-                    onPress={() => completeWithPhotos(a.id)}
-                    loading={busy}
-                  />
-                  {images.length > 0 && (
-                    <PrimaryButton
-                      label={busy ? "..." : "Mevcut görsellerle tamamla"}
-                      onPress={() => postStatus(a.id, "TAMAMLANDI")}
-                      loading={busy}
-                    />
-                  )}
-                  <SecondaryButton
-                    label="Görsel ekle (galeri)"
-                    onPress={() => {
-                      if (!busy) addImages(a.id);
-                    }}
-                  />
-                  <SecondaryButton
-                    label={busy ? "Bekleyin..." : "Kamera ile çek"}
-                    onPress={async () => {
-                      if (busy) return;
-                      const permission = await ImagePicker.requestCameraPermissionsAsync();
-                      if (!permission.granted) return Alert.alert("İzin gerekli");
-                      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-                      if (!result.canceled && result.assets[0]) {
-                        await postStatus(a.id, "TAMAMLANDI", result.assets);
-                      }
-                    }}
-                  />
-                </>
-              )}
-              {status === "TAMAMLANDI" && (
-                <>
-                  <PrimaryButton
-                    label={busy ? "Yükleniyor..." : "Görsel ekle (toplu)"}
-                    onPress={() => addImages(a.id)}
-                    loading={busy}
-                  />
-                  <SecondaryButton
-                    label={busy ? "Bekleyin..." : "Kamera ile ekle"}
-                    onPress={async () => {
-                      if (busy) return;
-                      const permission = await ImagePicker.requestCameraPermissionsAsync();
-                      if (!permission.granted) return Alert.alert("İzin gerekli");
-                      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-                      if (!result.canceled && result.assets[0]) {
-                        await patchImages(a.id, "ADD_IMAGES", { files: result.assets });
-                      }
-                    }}
-                  />
-                  <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 4 }}>
-                    Görsellere basarak Değiştir / Sil yapabilirsiniz.
-                  </Text>
-                </>
               )}
             </View>
           </Card>

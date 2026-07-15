@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2 } from "lucide-react";
 import { fetchSlimStores } from "@/lib/stores-cache";
 import { useIsStrictAdmin } from "@/lib/role-context";
 import { Button } from "@/components/ui/button";
@@ -539,7 +539,9 @@ export function StoreAnnouncementsView() {
   const [filesById, setFilesById] = useState<Record<string, File[]>>({});
   const [previewsById, setPreviewsById] = useState<Record<string, string[]>>({});
   const [error, setError] = useState("");
-  const [replacing, setReplacing] = useState<{ id: string; url: string } | null>(null);
+  const [replacingUrl, setReplacingUrl] = useState<string | null>(null);
+  const addInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const replaceInputRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     const res = await fetch("/api/v1/announcements", { cache: "no-store" });
@@ -572,7 +574,7 @@ export function StoreAnnouncementsView() {
     );
   }
 
-  function appendFilesFor(id: string, list: FileList | null) {
+  function appendPending(id: string, list: FileList | null) {
     const incoming = list ? Array.from(list) : [];
     if (!incoming.length) return;
     setFilesById((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), ...incoming] }));
@@ -610,6 +612,41 @@ export function StoreAnnouncementsView() {
     });
   }
 
+  async function uploadFilesNow(id: string, files: File[]) {
+    if (!files.length) return;
+    setLoadingId(id);
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("action", "ADD_IMAGES");
+      files.forEach((file, i) => form.append(`file_${i}`, file));
+      const res = await fetch(`/api/v1/announcements/${id}/receipt`, { method: "PATCH", body: form });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? "Görsel eklenemedi");
+        return;
+      }
+      const updated = await res.json().catch(() => null);
+      if (updated) patchReceiptLocal(id, updated);
+      await load();
+    } finally {
+      setLoadingId(null);
+    }
+  }
+
+  /** + ile seçim: kayıtlı görsel yoksa pending, varsa anında yükle */
+  async function onPlusFilesSelected(id: string, list: FileList | null) {
+    const files = list ? Array.from(list) : [];
+    if (!files.length) return;
+    const savedCount = items.find((x) => x.id === id)?.receipt?.completionImages?.length ?? 0;
+    const status = items.find((x) => x.id === id)?.receipt?.status ?? "BEKLIYOR";
+    if (status === "ISLEME_ALINDI" && savedCount === 0) {
+      appendPending(id, list);
+      return;
+    }
+    await uploadFilesNow(id, files);
+  }
+
   async function act(id: string, action: "OKUNDU" | "ISLEME_ALINDI" | "TAMAMLANDI") {
     if (loadingId) return;
     setLoadingId(id);
@@ -621,7 +658,7 @@ export function StoreAnnouncementsView() {
         const existingCount =
           items.find((x) => x.id === id)?.receipt?.completionImages?.length ?? 0;
         if (!selected.length && !existingCount) {
-          setError("Tamamlama için en az bir görsel seçin (JPG/PNG/WebP)");
+          setError("Tamamlama için en az bir görsel ekleyin (+ ile)");
           return;
         }
         const form = new FormData();
@@ -643,33 +680,6 @@ export function StoreAnnouncementsView() {
         return;
       }
 
-      const updated = await res.json().catch(() => null);
-      if (updated) patchReceiptLocal(id, updated);
-      clearPendingFiles(id);
-      await load();
-    } finally {
-      setLoadingId(null);
-    }
-  }
-
-  async function addImages(id: string) {
-    const selected = filesById[id] ?? [];
-    if (!selected.length) {
-      setError("Eklenecek görsel seçin");
-      return;
-    }
-    setLoadingId(id);
-    setError("");
-    try {
-      const form = new FormData();
-      form.append("action", "ADD_IMAGES");
-      selected.forEach((file, i) => form.append(`file_${i}`, file));
-      const res = await fetch(`/api/v1/announcements/${id}/receipt`, { method: "PATCH", body: form });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError(data.error ?? "Görsel eklenemedi");
-        return;
-      }
       const updated = await res.json().catch(() => null);
       if (updated) patchReceiptLocal(id, updated);
       clearPendingFiles(id);
@@ -722,7 +732,7 @@ export function StoreAnnouncementsView() {
       await load();
     } finally {
       setLoadingId(null);
-      setReplacing(null);
+      setReplacingUrl(null);
     }
   }
 
@@ -730,6 +740,26 @@ export function StoreAnnouncementsView() {
     <div className="space-y-6">
       <PageHeader title="Duyurular" subtitle="Okuyun, işleme alın, görsel ekleyerek tamamlayın" />
       {error ? <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
+
+      {/* Tek gizli input — değiştirme için */}
+      <input
+        ref={replaceInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const announcementId = items.find((x) =>
+            (x.receipt?.completionImages ?? []).includes(replacingUrl ?? "")
+          )?.id;
+          e.target.value = "";
+          if (file && replacingUrl && announcementId) {
+            void replaceImage(announcementId, replacingUrl, file);
+          } else {
+            setReplacingUrl(null);
+          }
+        }}
+      />
 
       {items.map((a) => {
         const status = a.receipt?.status ?? "BEKLIYOR";
@@ -761,137 +791,103 @@ export function StoreAnnouncementsView() {
                 <div className="w-full space-y-3 rounded-xl border bg-secondary/20 p-4">
                   <Label className="text-sm font-medium">
                     {status === "ISLEME_ALINDI"
-                      ? "Tamamlama görselleri (zorunlu — birden fazla seçebilirsiniz)"
+                      ? "Tamamlama görselleri — + ile ekleyin"
                       : "Tamamlama görselleri"}
                   </Label>
 
-                  {savedImages.length > 0 && (
-                    <div className="flex flex-wrap gap-3">
-                      {savedImages.map((url) => (
-                        <div key={url} className="relative w-24 space-y-1">
-                          <a
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="relative block h-20 w-24 overflow-hidden rounded-lg border bg-background"
+                  <div className="flex flex-wrap gap-3">
+                    {savedImages.map((url) => (
+                      <div key={url} className="relative w-24 space-y-1">
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="relative block h-20 w-24 overflow-hidden rounded-lg border bg-background"
+                        >
+                          <Image src={thumbUrl(url) ?? url} alt="" fill className="object-cover" unoptimized />
+                        </a>
+                        <div className="flex gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 flex-1 px-1 text-[10px]"
+                            disabled={busy}
+                            onClick={() => {
+                              setReplacingUrl(url);
+                              replaceInputRef.current?.click();
+                            }}
                           >
-                            <Image src={thumbUrl(url) ?? url} alt="" fill className="object-cover" unoptimized />
-                          </a>
-                          <div className="flex gap-1">
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="outline"
-                              className="h-7 flex-1 px-1 text-[10px]"
-                              disabled={busy}
-                              onClick={() => setReplacing({ id: a.id, url })}
-                            >
-                              Değiştir
-                            </Button>
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="destructive"
-                              className="h-7 px-2"
-                              disabled={busy}
-                              onClick={() => removeImage(a.id, url)}
-                              title="Sil"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
+                            Değiştir
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            className="h-7 px-2"
+                            disabled={busy}
+                            onClick={() => removeImage(a.id, url)}
+                            title="Sil"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </div>
+                    ))}
 
-                  {replacing?.id === a.id && (
-                    <div className="rounded-lg border border-dashed bg-background p-3">
-                      <Label className="text-xs text-muted-foreground">Yeni görsel seç (değiştirmek için)</Label>
-                      <Input
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp,image/*"
-                        disabled={busy}
-                        className="mt-2"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (file) replaceImage(a.id, replacing.url, file);
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="mt-2"
-                        disabled={busy}
-                        onClick={() => setReplacing(null)}
-                      >
-                        İptal
-                      </Button>
-                    </div>
-                  )}
+                    {previews.map((src, i) => (
+                      <div key={src} className="relative w-24">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={src} alt="" className="h-20 w-24 rounded-lg border object-cover" />
+                        <button
+                          type="button"
+                          className="absolute -right-1 -top-1 rounded-full bg-destructive px-1.5 text-[10px] text-destructive-foreground"
+                          onClick={() => removePendingAt(a.id, i)}
+                          disabled={busy}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
 
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">
-                      Yeni görsel ekle (toplu seçim desteklenir)
-                    </Label>
-                    <Input
+                    {/* + kutusu */}
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title="Görsel ekle"
+                      onClick={() => addInputRefs.current[a.id]?.click()}
+                      className="flex h-20 w-24 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-muted-foreground/40 bg-background text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-50"
+                    >
+                      <Plus className="h-6 w-6" />
+                      <span className="text-[10px]">Ekle</span>
+                    </button>
+                    <input
+                      ref={(el) => {
+                        addInputRefs.current[a.id] = el;
+                      }}
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/*"
                       multiple
+                      className="hidden"
                       disabled={busy}
                       onChange={(e) => {
-                        appendFilesFor(a.id, e.target.files);
+                        void onPlusFilesSelected(a.id, e.target.files);
                         e.target.value = "";
                       }}
                     />
                   </div>
 
-                  {previews.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {previews.map((src, i) => (
-                        <div key={src} className="relative">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={src} alt="" className="h-20 w-20 rounded-lg border object-cover" />
-                          <button
-                            type="button"
-                            className="absolute -right-1 -top-1 rounded-full bg-destructive px-1.5 text-[10px] text-destructive-foreground"
-                            onClick={() => removePendingAt(a.id, i)}
-                            disabled={busy}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2">
-                    {status === "ISLEME_ALINDI" && (
-                      <Button
-                        disabled={busy || (!(filesById[a.id]?.length) && !savedImages.length)}
-                        onClick={() => act(a.id, "TAMAMLANDI")}
-                      >
-                        {busy ? "Yükleniyor..." : "Görsel ile tamamla"}
-                      </Button>
-                    )}
+                  {status === "ISLEME_ALINDI" && (
                     <Button
-                      variant="outline"
-                      disabled={busy || !(filesById[a.id]?.length)}
-                      onClick={() => addImages(a.id)}
+                      disabled={busy || (!(filesById[a.id]?.length) && !savedImages.length)}
+                      onClick={() => act(a.id, "TAMAMLANDI")}
                     >
-                      {busy ? "Yükleniyor..." : "Görsel ekle"}
+                      {busy ? "Yükleniyor..." : "Görsel ile tamamla"}
                     </Button>
-                    {previews.length > 0 && (
-                      <Button variant="ghost" disabled={busy} onClick={() => clearPendingFiles(a.id)}>
-                        Seçimi temizle
-                      </Button>
-                    )}
-                  </div>
+                  )}
                   {status === "TAMAMLANDI" && (
                     <p className="text-xs text-muted-foreground">
-                      Tamamlandıktan sonra da görsel ekleyebilir, silebilir veya değiştirebilirsiniz.
+                      + ile yeni görsel ekleyebilir; mevcut olanları silebilir veya değiştirebilirsiniz.
                     </p>
                   )}
                 </div>
