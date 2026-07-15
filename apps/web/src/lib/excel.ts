@@ -3,7 +3,26 @@ import { prisma } from "@magaza/database";
 import { groupSizesWithTolerance, type SizeInput } from "@/lib/size-groups";
 import { addSizeSummarySheet } from "@/lib/requests-excel";
 
-export async function generateExcelBuffer(storeId?: string) {
+const AVM_COLUMNS: Partial<ExcelJS.Column>[] = [
+  { header: "Mağaza", key: "store", width: 25 },
+  { header: "Tür", key: "tur", width: 14 },
+  { header: "No", key: "vitrinNo", width: 8 },
+  { header: "Konum", key: "konum", width: 20 },
+  { header: "En", key: "en", width: 10 },
+  { header: "Boy", key: "boy", width: 10 },
+  { header: "Cam En", key: "camEn", width: 10 },
+  { header: "Cam Boy", key: "camBoy", width: 10 },
+  { header: "Video Adet", key: "videoAdet", width: 12 },
+  { header: "Video Konum", key: "videoKonum", width: 15 },
+  { header: "Görsel URL", key: "gorsel", width: 40 },
+  { header: "Güncelleme", key: "updated", width: 20 },
+];
+
+function cloneColumns(cols: Partial<ExcelJS.Column>[]) {
+  return cols.map((c) => ({ ...c }));
+}
+
+export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Mağaza Platform";
   workbook.created = new Date();
@@ -26,27 +45,15 @@ export async function generateExcelBuffer(storeId?: string) {
     orderBy: { name: "asc" },
   });
 
+  // ExcelJS mutates column defs — never share the same array across sheets
   const ucretsizSheet = workbook.addWorksheet("AVM Ücretsiz");
-  ucretsizSheet.columns = [
-    { header: "Mağaza", key: "store", width: 25 },
-    { header: "Tür", key: "tur", width: 14 },
-    { header: "No", key: "vitrinNo", width: 8 },
-    { header: "Konum", key: "konum", width: 20 },
-    { header: "En", key: "en", width: 10 },
-    { header: "Boy", key: "boy", width: 10 },
-    { header: "Cam En", key: "camEn", width: 10 },
-    { header: "Cam Boy", key: "camBoy", width: 10 },
-    { header: "Video Adet", key: "videoAdet", width: 12 },
-    { header: "Video Konum", key: "videoKonum", width: 15 },
-    { header: "Görsel URL", key: "gorsel", width: 40 },
-    { header: "Güncelleme", key: "updated", width: 20 },
-  ];
+  ucretsizSheet.columns = cloneColumns(AVM_COLUMNS);
 
   const ucretliSheet = workbook.addWorksheet("AVM Ücretli");
-  ucretliSheet.columns = ucretsizSheet.columns;
+  ucretliSheet.columns = cloneColumns(AVM_COLUMNS);
 
   const acikHavaSheet = workbook.addWorksheet("Açık Hava");
-  acikHavaSheet.columns = [
+  acikHavaSheet.columns = cloneColumns([
     { header: "Mağaza", key: "store", width: 25 },
     { header: "Tür", key: "tur", width: 20 },
     { header: "En", key: "en", width: 10 },
@@ -55,10 +62,10 @@ export async function generateExcelBuffer(storeId?: string) {
     { header: "Not", key: "note", width: 30 },
     { header: "Görsel URL", key: "gorsel", width: 40 },
     { header: "Güncelleme", key: "updated", width: 20 },
-  ];
+  ]);
 
   const magazaIciSheet = workbook.addWorksheet("Mağaza İçi");
-  magazaIciSheet.columns = [
+  magazaIciSheet.columns = cloneColumns([
     { header: "Mağaza", key: "store", width: 25 },
     { header: "Tür", key: "tur", width: 20 },
     { header: "Konum", key: "konum", width: 25 },
@@ -68,17 +75,17 @@ export async function generateExcelBuffer(storeId?: string) {
     { header: "Not", key: "note", width: 30 },
     { header: "Görsel URL", key: "gorsel", width: 40 },
     { header: "Güncelleme", key: "updated", width: 20 },
-  ];
+  ]);
 
   const talepSheet = workbook.addWorksheet("Talepler");
-  talepSheet.columns = [
+  talepSheet.columns = cloneColumns([
     { header: "Mağaza", key: "store", width: 25 },
     { header: "Hedef", key: "target", width: 15 },
     { header: "Durum", key: "status", width: 20 },
     { header: "Talep Tarihi", key: "created", width: 20 },
     { header: "Tamamlanma", key: "completed", width: 20 },
     { header: "Not", key: "note", width: 30 },
-  ];
+  ]);
 
   const sizeInputs: SizeInput[] = [];
 
@@ -207,6 +214,5 @@ export async function generateExcelBuffer(storeId?: string) {
     storeId ? `Mağaza filtresi: ${storeId}` : "Tüm mağazalar"
   );
 
-  const buffer = await workbook.xlsx.writeBuffer();
-  return buffer;
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
