@@ -143,52 +143,54 @@ function InventoryListRow({
   const canDelete = Boolean(deleteUrlFor(item));
 
   return (
-    <li className="flex gap-4 border-t px-4 py-3 first:border-t-0">
-      <div className="shrink-0">
-        {imageUrl ? (
-          <ClickableThumbnail
-            src={thumbUrl(imageUrl) ?? imageUrl}
-            alt={item.label}
-            onClick={() => onImageClick(imageUrl, item.label)}
-          />
-        ) : (
-          <div className="flex h-24 w-24 items-center justify-center rounded-xl border bg-muted text-xs text-muted-foreground">
-            Görsel yok
+    <li className="flex flex-col gap-3 border-t px-4 py-3 first:border-t-0 sm:flex-row sm:items-center">
+      <div className="flex min-w-0 flex-1 gap-4">
+        <div className="shrink-0">
+          {imageUrl ? (
+            <ClickableThumbnail
+              src={thumbUrl(imageUrl) ?? imageUrl}
+              alt={item.label}
+              onClick={() => onImageClick(imageUrl, item.label)}
+            />
+          ) : (
+            <div className="flex h-24 w-24 items-center justify-center rounded-xl border bg-muted text-xs text-muted-foreground">
+              Görsel yok
+            </div>
+          )}
+        </div>
+        <div className="min-w-0 flex-1 space-y-1">
+          <p className="font-medium leading-snug">{item.label}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="text-xs">
+              {TYPE_LABELS[item.type] ?? item.type.replace(/_/g, " ")}
+            </Badge>
+            {item.en && item.boy && (
+              <span className="text-xs text-muted-foreground">{item.en}×{item.boy} cm</span>
+            )}
+            {item.status && (
+              <span className="text-xs text-muted-foreground">
+                {CHANGE_REQUEST_STATUS_LABELS[item.status]}
+              </span>
+            )}
           </div>
-        )}
+        </div>
       </div>
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="font-medium leading-snug">{item.label}</p>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="text-xs">
-            {TYPE_LABELS[item.type] ?? item.type.replace(/_/g, " ")}
-          </Badge>
-          {item.en && item.boy && (
-            <span className="text-xs text-muted-foreground">{item.en}×{item.boy} cm</span>
-          )}
-          {item.status && (
-            <span className="text-xs text-muted-foreground">
-              {CHANGE_REQUEST_STATUS_LABELS[item.status]}
-            </span>
-          )}
-        </div>
-        <div className="flex flex-wrap gap-2 pt-1">
-          {canEdit && (
-            <Button size="sm" variant="outline" disabled={busy} onClick={() => onEdit(item)}>
-              <Pencil className="mr-1 h-3 w-3" /> Düzenle
-            </Button>
-          )}
-          {canDelete && (
-            <Button size="sm" variant="destructive" disabled={busy} onClick={() => onDelete(item)}>
-              <Trash2 className="mr-1 h-3 w-3" /> Sil
-            </Button>
-          )}
-          {item.type === "CATALOG_REQUEST" && (
-            <Button size="sm" variant="outline" asChild>
-              <Link href="/admin/requests">Talepler</Link>
-            </Button>
-          )}
-        </div>
+      <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch">
+        {canEdit && (
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => onEdit(item)} className="min-w-[7.5rem]">
+            <Pencil className="mr-1 h-3 w-3" /> Düzenle
+          </Button>
+        )}
+        {canDelete && (
+          <Button size="sm" variant="destructive" disabled={busy} onClick={() => onDelete(item)} className="min-w-[7.5rem]">
+            <Trash2 className="mr-1 h-3 w-3" /> Sil
+          </Button>
+        )}
+        {item.type === "CATALOG_REQUEST" && (
+          <Button size="sm" variant="outline" asChild className="min-w-[7.5rem]">
+            <Link href="/admin/requests">Talepler</Link>
+          </Button>
+        )}
       </div>
     </li>
   );
@@ -369,7 +371,7 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Envanter" subtitle="Mağazalara göre gruplanmış envanter kayıtları — düzenle ve sil" />
+      <PageHeader title="Envanter" subtitle="Kayıtları düzenleyin veya silin — her satırın sağında Düzenle / Sil" />
 
       <section className="panel-section space-y-4">
         <div className="flex items-center gap-2">
