@@ -1,16 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { access, readFile } from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
-import { resolveUploadPath } from "@/lib/upload";
-
-async function fileExists(filePath: string) {
-  try {
-    await access(filePath);
-    return true;
-  } catch {
-    return false;
-  }
-}
+import { findUploadFile } from "@/lib/upload";
 
 export async function GET(
   request: NextRequest,
@@ -24,16 +15,19 @@ export async function GET(
   }
 
   const wantThumb = request.nextUrl.searchParams.get("size") === "thumb";
-  let filePath = wantThumb
-    ? resolveUploadPath(filename, "thumb")
-    : resolveUploadPath(filename, "full");
+  const filePath = await findUploadFile(
+    filename,
+    wantThumb ? "thumb" : "full"
+  );
 
-  if (!(await fileExists(filePath)) && wantThumb) {
-    filePath = resolveUploadPath(filename, "full");
-  }
-
-  if (!(await fileExists(filePath))) {
-    return NextResponse.json({ error: "Dosya bulunamadı" }, { status: 404 });
+  if (!filePath) {
+    return NextResponse.json(
+      {
+        error: "Dosya bulunamadı",
+        hint: "Coolify Persistent Storage /app/uploads bağlı mı? Eski kayıtlar için görseli Düzenle ile yeniden yükleyin.",
+      },
+      { status: 404 }
+    );
   }
 
   const buffer = await readFile(filePath);

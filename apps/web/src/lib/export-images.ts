@@ -1,6 +1,6 @@
 import { readFile } from "fs/promises";
 import sharp from "sharp";
-import { resolveUploadPath } from "@/lib/upload";
+import { findUploadFile } from "@/lib/upload";
 
 export type ExportImageBuffer = {
   buffer: Buffer;
@@ -20,20 +20,10 @@ export async function loadThumbBuffer(
   const filename = filenameFromUrl(url);
   if (!filename) return null;
 
-  const thumbPath = resolveUploadPath(filename, "thumb");
-  const fullPath = resolveUploadPath(filename, "full");
-
-  let filePath = thumbPath;
-  try {
-    await readFile(thumbPath);
-  } catch {
-    try {
-      await readFile(fullPath);
-      filePath = fullPath;
-    } catch {
-      return null;
-    }
-  }
+  const filePath =
+    (await findUploadFile(filename, "thumb")) ??
+    (await findUploadFile(filename, "full"));
+  if (!filePath) return null;
 
   try {
     const buffer = await sharp(filePath)

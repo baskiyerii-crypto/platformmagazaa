@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { access } from "fs/promises";
-import { getUploadDir } from "@/lib/upload";
+import { getUploadDirStatus } from "@/lib/upload";
 
 /**
  * Runtime env presence check for Coolify/debug.
@@ -14,21 +13,14 @@ export async function GET() {
   const nextAuthUrl = process.env.NEXTAUTH_URL ?? null;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
   const uploadDirEnv = process.env.UPLOAD_DIR ?? null;
-  const uploadDirResolved = getUploadDir();
-
-  let uploadDirWritable = false;
-  try {
-    await access(uploadDirResolved);
-    uploadDirWritable = true;
-  } catch {
-    uploadDirWritable = false;
-  }
+  const uploadStatus = await getUploadDirStatus();
 
   const ready = nextAuthSecret && databaseUrl && Boolean(nextAuthUrl);
+  const uploadsOk = uploadStatus.writable;
 
   return NextResponse.json(
     {
-      ok: ready,
+      ok: ready && uploadsOk,
       nodeEnv: process.env.NODE_ENV ?? null,
       cwd: process.cwd(),
       env: {
@@ -40,14 +32,15 @@ export async function GET() {
         UPLOAD_DIR: uploadDirEnv,
       },
       uploads: {
-        resolvedDir: uploadDirResolved,
-        dirExists: uploadDirWritable,
+        ...uploadStatus,
         route: "/api/v1/uploads/[filename]",
       },
-      hint: ready
-        ? null
-        : "Coolify → Environment Variables: set NEXTAUTH_SECRET, NEXTAUTH_URL, DATABASE_URL (Runtime+Build), then Redeploy",
+      hint: !ready
+        ? "Coolify → Environment Variables: set NEXTAUTH_SECRET, NEXTAUTH_URL, DATABASE_URL (Runtime+Build), then Redeploy"
+        : !uploadsOk
+          ? "Coolify → Storages: Persistent Storage ekle, Destination Path = /app/uploads, sonra Restart. Env UPLOAD_DIR=/app/uploads olmalı."
+          : null,
     },
-    { status: ready ? 200 : 503 }
+    { status: ready && uploadsOk ? 200 : 503 }
   );
 }

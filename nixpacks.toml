@@ -14,4 +14,4 @@ cmds = [
 ]
 
 [start]
-cmd = "pnpm --filter @magaza/web start"
+cmd = "mkdir -p ${UPLOAD_DIR:-/app/uploads} && pnpm --filter @magaza/web start"
