@@ -7,6 +7,8 @@ export type ChangeRequestTargetDetail = {
   placementName?: string | null;
   konum?: string | null;
   dimensions?: string | null;
+  en?: number | null;
+  boy?: number | null;
   adet?: number | null;
   gorselUrl?: string | null;
   summary: string;
@@ -80,6 +82,9 @@ export async function resolveChangeRequestTargets(
       subTypeName,
       konum,
       dimensions,
+      en: v.en,
+      boy: v.boy,
+      adet: 1,
       gorselUrl: v.gorselUrl,
       summary: parts.join(" · "),
     });
@@ -92,6 +97,8 @@ export async function resolveChangeRequestTargets(
       typeLabel: MEDIA_CATEGORY_LABELS.OUTDOOR,
       subTypeName,
       dimensions,
+      en: o.en,
+      boy: o.boy,
       adet: o.adet,
       gorselUrl: o.gorselUrl,
       summary: [MEDIA_CATEGORY_LABELS.OUTDOOR, subTypeName].join(" · "),
@@ -108,6 +115,8 @@ export async function resolveChangeRequestTargets(
       placementName,
       konum: placementName,
       dimensions,
+      en: s.en,
+      boy: s.boy,
       adet: s.adet,
       gorselUrl: s.gorselUrl,
       summary: [MEDIA_CATEGORY_LABELS.STORE_SIGNAGE, subTypeName, placementName].join(" · "),
@@ -122,6 +131,8 @@ export async function resolveChangeRequestTargets(
       placementName,
       konum: placementName,
       dimensions,
+      en: v.en,
+      boy: v.boy,
       adet: v.adet,
       summary: ["AVM Video", placementName].join(" · "),
     });

@@ -15,7 +15,9 @@ import { DialogContent, DialogRoot } from "@/components/ui/dialog";
 import { ImageUploadPreview } from "@/components/image-upload-preview";
 import { PageHeader, SkeletonGrid } from "@/components/page-header";
 import { ClickableThumbnail, ImageLightbox } from "@/components/image-lightbox";
+import { SizeSummaryPanel } from "@/components/admin/size-summary-panel";
 import { queryKeys } from "@/lib/query-keys";
+import type { SizeGroup } from "@/lib/size-groups";
 import { CHANGE_REQUEST_STATUS_LABELS, thumbUrl, type PaginatedResponse, type ChangeRequestStatus } from "@magaza/shared";
 
 const AvmManager = dynamic(
@@ -229,6 +231,8 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   const [editCamBoy, setEditCamBoy] = useState("");
   const [editFile, setEditFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
+  const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
+  const [sizeLoading, setSizeLoading] = useState(false);
 
   function buildExportUrl(format: "excel" | "pdf") {
     const params = new URLSearchParams({ format });
@@ -241,6 +245,26 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   function downloadExport(format: "excel" | "pdf") {
     window.open(buildExportUrl(format), "_blank");
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    setSizeLoading(true);
+    const params = new URLSearchParams({ summaryOnly: "1" });
+    if (storeId) params.set("storeId", storeId);
+    if (type) params.set("type", type);
+    if (search.trim()) params.set("search", search.trim());
+    fetch(`/api/v1/admin/export/inventory?${params}`)
+      .then((r) => (r.ok ? r.json() : { groups: [] }))
+      .then((data) => {
+        if (!cancelled) setSizeGroups(data.groups ?? []);
+      })
+      .finally(() => {
+        if (!cancelled) setSizeLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId, type, search]);
 
   const { data: stores = [] } = useQuery({
     queryKey: queryKeys.stores.slim,
@@ -509,7 +533,7 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
           <Download className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">Toplu İndir (aktif filtreler)</span>
           <Button size="sm" variant="outline" onClick={() => downloadExport("excel")}>
-            <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel (Görselli)
+            <FileSpreadsheet className="mr-1 h-4 w-4" /> Excel (Görselli + Ölçü Özeti)
           </Button>
           <Button size="sm" variant="outline" onClick={() => downloadExport("pdf")}>
             <FileText className="mr-1 h-4 w-4" /> PDF (Görselli)
@@ -519,6 +543,12 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
           )}
         </div>
       </section>
+
+      <SizeSummaryPanel
+        title="Ölçü Özeti (aktif filtreler)"
+        groups={sizeGroups}
+        loading={sizeLoading}
+      />
 
       {loading ? (
         <SkeletonGrid count={6} />

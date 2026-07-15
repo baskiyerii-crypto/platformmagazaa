@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/status-badge";
 import { ClickableThumbnail, ImageLightbox } from "@/components/image-lightbox";
+import { SizeSummaryPanel } from "@/components/admin/size-summary-panel";
 import { formatDate } from "@/lib/utils";
+import type { SizeGroup } from "@/lib/size-groups";
 import {
   ADMIN_STATUS_TRANSITIONS,
   CHANGE_REQUEST_STATUS_LABELS,
@@ -27,6 +29,8 @@ type ChangeRequestTarget = {
   placementName?: string | null;
   konum?: string | null;
   dimensions?: string | null;
+  en?: number | null;
+  boy?: number | null;
   adet?: number | null;
   gorselUrl?: string | null;
 };
@@ -121,6 +125,44 @@ export function RequestsManager() {
   const [dateTo, setDateTo] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
+  const [sizeLoading, setSizeLoading] = useState(false);
+
+  function buildExportParams(includeTab = true) {
+    const params = new URLSearchParams();
+    if (status) params.set("status", status);
+    if (storeId) params.set("storeId", storeId);
+    if (targetType) params.set("targetType", targetType);
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
+    if (includeTab) params.set("tab", tab === "catalog" ? "catalog" : tab === "visual" ? "visual" : "all");
+    return params;
+  }
+
+  async function loadSizeSummary() {
+    setSizeLoading(true);
+    try {
+      const params = buildExportParams(false);
+      params.set("summaryOnly", "1");
+      const res = await fetch(`/api/v1/admin/export/requests?${params}`);
+      if (!res.ok) {
+        setSizeGroups([]);
+        return;
+      }
+      const data = await res.json();
+      setSizeGroups(data.groups ?? []);
+    } finally {
+      setSizeLoading(false);
+    }
+  }
+
+  function downloadRequestsExcel() {
+    const params = buildExportParams(true);
+    params.set("format", "excel");
+    // always export both sheets when downloading "all requests"
+    params.set("tab", "all");
+    window.open(`/api/v1/admin/export/requests?${params}`, "_blank");
+  }
 
   async function loadVisual() {
     const params = new URLSearchParams({ detail: "true" });
@@ -153,6 +195,10 @@ export function RequestsManager() {
     if (tab === "visual") loadVisual();
     else loadCatalog();
   }, [tab, status, storeId, targetType, dateFrom, dateTo]);
+
+  useEffect(() => {
+    loadSizeSummary();
+  }, [status, storeId, targetType, dateFrom, dateTo]);
 
   const currentIds =
     tab === "visual" ? visualRequests.map((r) => r.id) : catalogRequests.map((r) => r.id);
@@ -238,9 +284,15 @@ export function RequestsManager() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Talepler</h1>
-        <p className="text-muted-foreground">Görsel değişim ve ürün talepleri — tekli veya toplu silme</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Talepler</h1>
+          <p className="text-muted-foreground">Görsel değişim ve ürün talepleri — indirme, silme, ölçü özeti</p>
+        </div>
+        <Button onClick={downloadRequestsExcel}>
+          <Download className="mr-2 h-4 w-4" />
+          Tüm talepleri indir (Excel)
+        </Button>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -287,6 +339,12 @@ export function RequestsManager() {
           <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
       </div>
+
+      <SizeSummaryPanel
+        title="Ölçü Özeti (görsel talepler)"
+        groups={sizeGroups}
+        loading={sizeLoading}
+      />
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-secondary/20 px-4 py-3">
         <label className="flex items-center gap-2 text-sm font-medium">

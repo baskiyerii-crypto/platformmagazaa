@@ -6,6 +6,8 @@ import {
   formatExportFilterSummary,
 } from "@/lib/server/inventory-export-data";
 import type { InventoryFilterOptions } from "@/lib/server/inventory-filters";
+import { groupSizesWithTolerance } from "@/lib/size-groups";
+import { addSizeSummarySheet } from "@/lib/requests-excel";
 
 const ROW_HEIGHT = 48;
 
@@ -95,6 +97,17 @@ export async function generateInventoryExcelBuffer(
 
     rowIndex++;
   }
+
+  const groups = groupSizesWithTolerance(
+    rows
+      .map((r) => ({
+        en: Number(r.en),
+        boy: Number(r.boy),
+        adet: Number(r.adet) || 1,
+      }))
+      .filter((r) => Number.isFinite(r.en) && Number.isFinite(r.boy) && r.en > 0 && r.boy > 0)
+  );
+  addSizeSummarySheet(workbook, groups, formatExportFilterSummary(filters));
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
