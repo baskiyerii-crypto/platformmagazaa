@@ -5,6 +5,7 @@ import { createChangeRequestSchema, isStaffRole, parsePagination, paginatedRespo
 import { createStatusHistory } from "@/lib/change-request";
 import { notifyStaff } from "@/lib/notify";
 import { resolveChangeRequestTargets } from "@/lib/server/resolve-change-request-target";
+import { cleanupMediaUrls } from "@/lib/media-cleanup";
 
 export const GET = withAuth(async (request, auth) => {
   const { searchParams } = new URL(request.url);
@@ -151,4 +152,31 @@ export const POST = withAuth(async (request, auth) => {
   });
 
   return NextResponse.json(changeRequest, { status: 201 });
+});
+
+export const DELETE = withAuth(async (request, auth) => {
+  if (!isStaffRole(auth.role)) {
+    return jsonError("Sadece yönetici talepleri silebilir", 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const ids = Array.isArray(body?.ids)
+    ? body.ids.filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  if (ids.length === 0) {
+    return jsonError("Silinecek talep seçin", 400);
+  }
+
+  const requests = await prisma.changeRequest.findMany({
+    where: { id: { in: ids } },
+    include: { images: { select: { url: true } } },
+  });
+  const imageUrls = requests.flatMap((r) => r.images.map((img) => img.url));
+
+  const result = await prisma.changeRequest.deleteMany({
+    where: { id: { in: ids } },
+  });
+  await cleanupMediaUrls(imageUrls);
+
+  return NextResponse.json({ success: true, deleted: result.count });
 });

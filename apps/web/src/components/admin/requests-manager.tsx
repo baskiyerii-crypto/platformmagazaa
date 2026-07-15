@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -118,6 +119,8 @@ export function RequestsManager() {
   const [targetType, setTargetType] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
 
   async function loadVisual() {
     const params = new URLSearchParams({ detail: "true" });
@@ -129,6 +132,7 @@ export function RequestsManager() {
     const res = await fetch(`/api/v1/change-requests?${params}`);
     const data: PaginatedResponse<VisualRequest> = await res.json();
     setVisualRequests(data.items);
+    setSelected(new Set());
   }
 
   async function loadCatalog() {
@@ -138,6 +142,7 @@ export function RequestsManager() {
     const res = await fetch(`/api/v1/catalog-requests?${params}`);
     const data: PaginatedResponse<CatalogRequest> = await res.json();
     setCatalogRequests(data.items);
+    setSelected(new Set());
   }
 
   useEffect(() => {
@@ -148,6 +153,24 @@ export function RequestsManager() {
     if (tab === "visual") loadVisual();
     else loadCatalog();
   }, [tab, status, storeId, targetType, dateFrom, dateTo]);
+
+  const currentIds =
+    tab === "visual" ? visualRequests.map((r) => r.id) : catalogRequests.map((r) => r.id);
+  const allSelected = currentIds.length > 0 && currentIds.every((id) => selected.has(id));
+
+  function toggleOne(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAll() {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(currentIds));
+  }
 
   async function updateVisualStatus(id: string, next: ChangeRequestStatus) {
     await fetch(`/api/v1/change-requests/${id}`, {
@@ -167,14 +190,60 @@ export function RequestsManager() {
     loadCatalog();
   }
 
+  async function deleteOne(id: string, label: string) {
+    if (busy) return;
+    if (!confirm(`Bu talep silinsin mi?\n${label}`)) return;
+    setBusy(true);
+    try {
+      const url =
+        tab === "visual"
+          ? `/api/v1/change-requests/${id}`
+          : `/api/v1/catalog-requests/${id}`;
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Silinemedi.");
+        return;
+      }
+      if (tab === "visual") await loadVisual();
+      else await loadCatalog();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteSelected() {
+    if (busy || selected.size === 0) return;
+    if (!confirm(`${selected.size} talep silinsin mi? Bu işlem geri alınamaz.`)) return;
+    setBusy(true);
+    try {
+      const url =
+        tab === "visual" ? "/api/v1/change-requests" : "/api/v1/catalog-requests";
+      const res = await fetch(url, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selected] }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Toplu silme başarısız.");
+        return;
+      }
+      if (tab === "visual") await loadVisual();
+      else await loadCatalog();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Talepler</h1>
-        <p className="text-muted-foreground">Görsel değişim ve ürün talepleri</p>
+        <p className="text-muted-foreground">Görsel değişim ve ürün talepleri — tekli veya toplu silme</p>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button variant={tab === "visual" ? "default" : "outline"} onClick={() => setTab("visual")}>
           Görsel Değişim
         </Button>
@@ -219,6 +288,28 @@ export function RequestsManager() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-secondary/20 px-4 py-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            className="h-4 w-4"
+            checked={allSelected}
+            onChange={toggleAll}
+            disabled={currentIds.length === 0 || busy}
+          />
+          Tümünü seç ({currentIds.length})
+        </label>
+        <Button
+          variant="destructive"
+          size="sm"
+          disabled={selected.size === 0 || busy}
+          onClick={deleteSelected}
+        >
+          <Trash2 className="mr-1 h-4 w-4" />
+          Seçilenleri sil ({selected.size})
+        </Button>
+      </div>
+
       <div className="space-y-4">
         {tab === "visual"
           ? visualRequests.map((req) => {
@@ -226,35 +317,45 @@ export function RequestsManager() {
               const target = req.target;
 
               return (
-                <Card key={req.id}>
+                <Card key={req.id} className={selected.has(req.id) ? "ring-2 ring-primary/40" : undefined}>
                   <CardContent className="p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="min-w-0 flex-1 space-y-3">
-                        <div>
-                          <div className="font-semibold">{req.store.name}</div>
-                          <div className="text-sm text-muted-foreground">{formatDate(req.createdAt)}</div>
-                        </div>
-
-                        {target ? (
-                          <div className="rounded-xl border bg-secondary/30 p-4 text-sm">
-                            <div className="font-medium">{target.summary}</div>
-                            {target.dimensions && (
-                              <div className="mt-1 text-muted-foreground">Ölçü: {target.dimensions}</div>
-                            )}
-                            {target.adet != null && target.adet > 1 && (
-                              <div className="text-muted-foreground">Adet: {target.adet}</div>
-                            )}
-                            {target.konum && !target.placementName && (
-                              <div className="text-muted-foreground">Konum: {target.konum}</div>
-                            )}
+                      <div className="flex min-w-0 flex-1 gap-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 shrink-0"
+                          checked={selected.has(req.id)}
+                          onChange={() => toggleOne(req.id)}
+                          disabled={busy}
+                          aria-label="Talep seç"
+                        />
+                        <div className="min-w-0 flex-1 space-y-3">
+                          <div>
+                            <div className="font-semibold">{req.store.name}</div>
+                            <div className="text-sm text-muted-foreground">{formatDate(req.createdAt)}</div>
                           </div>
-                        ) : (
-                          <div className="text-sm text-muted-foreground">{req.targetType}</div>
-                        )}
 
-                        {req.note && <p className="text-sm">{req.note}</p>}
+                          {target ? (
+                            <div className="rounded-xl border bg-secondary/30 p-4 text-sm">
+                              <div className="font-medium">{target.summary}</div>
+                              {target.dimensions && (
+                                <div className="mt-1 text-muted-foreground">Ölçü: {target.dimensions}</div>
+                              )}
+                              {target.adet != null && target.adet > 1 && (
+                                <div className="text-muted-foreground">Adet: {target.adet}</div>
+                              )}
+                              {target.konum && !target.placementName && (
+                                <div className="text-muted-foreground">Konum: {target.konum}</div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="text-sm text-muted-foreground">{req.targetType}</div>
+                          )}
 
-                        <RequestImages images={req.images} target={target} />
+                          {req.note && <p className="text-sm">{req.note}</p>}
+
+                          <RequestImages images={req.images} target={target} />
+                        </div>
                       </div>
 
                       <div className="flex flex-col items-start gap-2 lg:items-end">
@@ -273,6 +374,16 @@ export function RequestsManager() {
                               {CHANGE_REQUEST_STATUS_LABELS[s]}
                             </Button>
                           ))}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={busy}
+                            onClick={() =>
+                              deleteOne(req.id, `${req.store.name} · ${target?.summary ?? req.targetType}`)
+                            }
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" /> Sil
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -283,15 +394,25 @@ export function RequestsManager() {
           : catalogRequests.map((req) => {
               const nextStatuses = ADMIN_STATUS_TRANSITIONS[req.status] ?? [];
               return (
-                <Card key={req.id}>
+                <Card key={req.id} className={selected.has(req.id) ? "ring-2 ring-primary/40" : undefined}>
                   <CardContent className="p-6">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="font-semibold">{req.store.name} · {req.catalogItem.name}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {req.quantity ? `${req.quantity} adet · ` : ""}{formatDate(req.createdAt)}
+                      <div className="flex min-w-0 flex-1 gap-3">
+                        <input
+                          type="checkbox"
+                          className="mt-1 h-4 w-4 shrink-0"
+                          checked={selected.has(req.id)}
+                          onChange={() => toggleOne(req.id)}
+                          disabled={busy}
+                          aria-label="Talep seç"
+                        />
+                        <div>
+                          <div className="font-semibold">{req.store.name} · {req.catalogItem.name}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {req.quantity ? `${req.quantity} adet · ` : ""}{formatDate(req.createdAt)}
+                          </div>
+                          {req.note && <p className="mt-2 text-sm">{req.note}</p>}
                         </div>
-                        {req.note && <p className="mt-2 text-sm">{req.note}</p>}
                       </div>
                       <div className="flex flex-col items-start gap-2 lg:items-end">
                         <StatusBadge status={req.status} />
@@ -301,6 +422,16 @@ export function RequestsManager() {
                               {CHANGE_REQUEST_STATUS_LABELS[s]}
                             </Button>
                           ))}
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            disabled={busy}
+                            onClick={() =>
+                              deleteOne(req.id, `${req.store.name} · ${req.catalogItem.name}`)
+                            }
+                          >
+                            <Trash2 className="mr-1 h-3 w-3" /> Sil
+                          </Button>
                         </div>
                       </div>
                     </div>
@@ -308,6 +439,10 @@ export function RequestsManager() {
                 </Card>
               );
             })}
+
+        {currentIds.length === 0 && (
+          <p className="py-8 text-center text-sm text-muted-foreground">Talep bulunamadı.</p>
+        )}
       </div>
     </div>
   );

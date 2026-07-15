@@ -5,6 +5,7 @@ import { createCatalogRequestSchema, isStaffRole, parsePagination, paginatedResp
 import { createCatalogStatusHistory } from "@/lib/catalog-request";
 import { saveUploadedFile } from "@/lib/upload";
 import { notifyStaff } from "@/lib/notify";
+import { cleanupMediaUrls } from "@/lib/media-cleanup";
 
 function resolveStoreId(
   auth: { role: string; storeId?: string | null },
@@ -162,4 +163,31 @@ export const POST = withAuth(async (request, auth) => {
   }
 
   return NextResponse.json(catalogRequest, { status: 201 });
+});
+
+export const DELETE = withAuth(async (request, auth) => {
+  if (!isStaffRole(auth.role)) {
+    return jsonError("Sadece yönetici talepleri silebilir", 403);
+  }
+
+  const body = await request.json().catch(() => null);
+  const ids = Array.isArray(body?.ids)
+    ? body.ids.filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
+    : [];
+  if (ids.length === 0) {
+    return jsonError("Silinecek talep seçin", 400);
+  }
+
+  const requests = await prisma.catalogRequest.findMany({
+    where: { id: { in: ids } },
+    select: { id: true, storeImageUrl: true },
+  });
+  const imageUrls = requests.map((r) => r.storeImageUrl);
+
+  const result = await prisma.catalogRequest.deleteMany({
+    where: { id: { in: ids } },
+  });
+  await cleanupMediaUrls(imageUrls);
+
+  return NextResponse.json({ success: true, deleted: result.count });
 });

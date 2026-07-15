@@ -6,6 +6,8 @@ import {
   createCatalogStatusHistory,
   validateCatalogStatusTransition,
 } from "@/lib/catalog-request";
+import { cleanupMediaUrls } from "@/lib/media-cleanup";
+import { notifyStoreUsers } from "@/lib/notify";
 
 export const GET = withAuthParams<{ id: string }>(async (_request, auth, context) => {
   const { id } = await context.params;
@@ -31,8 +33,6 @@ export const GET = withAuthParams<{ id: string }>(async (_request, auth, context
 
   return NextResponse.json(catalogRequest);
 });
-
-import { notifyStoreUsers } from "@/lib/notify";
 
 export const PATCH = withAuthParams<{ id: string }>(async (request, auth, context) => {
   const { id } = await context.params;
@@ -112,5 +112,6 @@ export const DELETE = withAuthParams<{ id: string }>(async (_request, auth, cont
   }
 
   await prisma.catalogRequest.delete({ where: { id } });
+  await cleanupMediaUrls([catalogRequest.storeImageUrl]);
   return NextResponse.json({ success: true });
 });
