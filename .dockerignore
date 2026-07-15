@@ -12,7 +12,10 @@ apps/mobile/ios
 apps/mobile/.expo
 apps/mobile/node_modules
 **/*.md
-**/uploads
+# Uploaded media on disk — never exclude the API route under src/app/api/v1/uploads
+/uploads/
+apps/web/uploads/
+apps/*/uploads/
 **/.DS_Store
 **/coverage
 **/.cursor
