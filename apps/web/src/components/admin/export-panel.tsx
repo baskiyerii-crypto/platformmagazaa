@@ -55,15 +55,15 @@ export function ExportPanel() {
 
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle>Filtreli Envanter (Görselli)</CardTitle>
+          <CardTitle>Reklam Giderleri</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Mağaza, tür ve arama filtresiyle tüm envanteri görselli Excel veya PDF olarak indirmek için{" "}
-            <Link href="/admin/inventory" className="font-medium text-primary hover:underline">
-              Envanter
+            Günlük / aylık / yıllık ve kategori filtreli reklam gideri Excel indirme için{" "}
+            <Link href="/admin/ad-expenses" className="font-medium text-primary hover:underline">
+              Reklam Giderleri
             </Link>{" "}
-            sayfasındaki &quot;Toplu İndir&quot; butonlarını kullanın.
+            sayfasını kullanın.
           </p>
         </CardContent>
       </Card>

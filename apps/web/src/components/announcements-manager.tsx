@@ -14,8 +14,10 @@ import { DialogContent, DialogRoot } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/page-header";
 import {
   ANNOUNCEMENT_AUDIENCE_LABELS,
+  ANNOUNCEMENT_KIND_LABELS,
   ANNOUNCEMENT_RECEIPT_STATUS_LABELS,
   thumbUrl,
+  type AnnouncementKind,
   type AnnouncementReceiptStatus,
   type PaginatedResponse,
 } from "@magaza/shared";
@@ -38,6 +40,7 @@ type Announcement = {
   id: string;
   title: string;
   body: string;
+  kind: AnnouncementKind;
   audience: keyof typeof ANNOUNCEMENT_AUDIENCE_LABELS;
   storeIds: string[];
   attachments?: Attachment[] | null;
@@ -59,6 +62,7 @@ export function AnnouncementsManager() {
   const [stores, setStores] = useState<Store[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [kind, setKind] = useState<AnnouncementKind>("NORMAL");
   const [audience, setAudience] = useState<"ALL_STORES" | "SELECTED_STORES">("ALL_STORES");
   const [storeIds, setStoreIds] = useState<string[]>([]);
   const [linkLabel, setLinkLabel] = useState("");
@@ -72,6 +76,7 @@ export function AnnouncementsManager() {
   const [editItem, setEditItem] = useState<Announcement | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const [editKind, setEditKind] = useState<AnnouncementKind>("NORMAL");
   const [editAudience, setEditAudience] = useState<"ALL_STORES" | "SELECTED_STORES">("ALL_STORES");
   const [editStoreIds, setEditStoreIds] = useState<string[]>([]);
   const [editAttachments, setEditAttachments] = useState<Attachment[]>([]);
@@ -108,7 +113,7 @@ export function AnnouncementsManager() {
       const res = await fetch("/api/v1/admin/announcements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, body, audience, storeIds, attachments }),
+        body: JSON.stringify({ title, body, kind, audience, storeIds, attachments }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -117,6 +122,7 @@ export function AnnouncementsManager() {
       }
       setTitle("");
       setBody("");
+      setKind("NORMAL");
       setAttachments([]);
       setStoreIds([]);
       await load();
@@ -129,6 +135,7 @@ export function AnnouncementsManager() {
     setEditItem(a);
     setEditTitle(a.title);
     setEditBody(a.body);
+    setEditKind(a.kind ?? "NORMAL");
     setEditAudience(a.audience);
     setEditStoreIds(a.storeIds ?? []);
     setEditAttachments(Array.isArray(a.attachments) ? [...a.attachments] : []);
@@ -148,6 +155,7 @@ export function AnnouncementsManager() {
         body: JSON.stringify({
           title: editTitle,
           body: editBody,
+          kind: editKind,
           audience: editAudience,
           storeIds: editStoreIds,
           attachments: editAttachments,
@@ -251,6 +259,18 @@ export function AnnouncementsManager() {
               />
             </div>
             <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Tür</Label>
+              <select
+                className="field-select"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as AnnouncementKind)}
+                disabled={publishing}
+              >
+                <option value="NORMAL">{ANNOUNCEMENT_KIND_LABELS.NORMAL}</option>
+                <option value="KAMPANYA">{ANNOUNCEMENT_KIND_LABELS.KAMPANYA}</option>
+              </select>
+            </div>
+            <div className="space-y-1.5">
               <Label className="text-xs text-muted-foreground">Hedef</Label>
               <select
                 className="field-select"
@@ -338,7 +358,12 @@ export function AnnouncementsManager() {
                       />
                     )}
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-lg font-semibold">{a.title}</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-semibold">{a.title}</h3>
+                        <Badge variant={a.kind === "KAMPANYA" ? "default" : "secondary"}>
+                          {ANNOUNCEMENT_KIND_LABELS[a.kind ?? "NORMAL"]}
+                        </Badge>
+                      </div>
                       <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">{a.body}</p>
                       {Array.isArray(a.attachments) &&
                         a.attachments.map((att, i) => (
@@ -449,6 +474,18 @@ export function AnnouncementsManager() {
                   onChange={(e) => setEditBody(e.target.value)}
                   disabled={savingEdit}
                 />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Tür</Label>
+                <select
+                  className="field-select"
+                  value={editKind}
+                  onChange={(e) => setEditKind(e.target.value as AnnouncementKind)}
+                  disabled={savingEdit}
+                >
+                  <option value="NORMAL">{ANNOUNCEMENT_KIND_LABELS.NORMAL}</option>
+                  <option value="KAMPANYA">{ANNOUNCEMENT_KIND_LABELS.KAMPANYA}</option>
+                </select>
               </div>
               <div className="space-y-1.5">
                 <Label>Hedef</Label>
@@ -776,7 +813,14 @@ export function StoreAnnouncementsView() {
                   {new Date(a.publishedAt).toLocaleString("tr-TR")}
                 </p>
               </div>
-              <Badge variant={STATUS_BADGE[status]}>{ANNOUNCEMENT_RECEIPT_STATUS_LABELS[status]}</Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                {"kind" in a && a.kind ? (
+                  <Badge variant={a.kind === "KAMPANYA" ? "default" : "outline"}>
+                    {ANNOUNCEMENT_KIND_LABELS[a.kind as AnnouncementKind]}
+                  </Badge>
+                ) : null}
+                <Badge variant={STATUS_BADGE[status]}>{ANNOUNCEMENT_RECEIPT_STATUS_LABELS[status]}</Badge>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="whitespace-pre-wrap text-sm">{a.body}</p>

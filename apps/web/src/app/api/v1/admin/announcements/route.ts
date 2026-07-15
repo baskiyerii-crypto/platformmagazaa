@@ -88,6 +88,7 @@ export const POST = withAuth(
         data: {
           title: parsed.data.title,
           body: parsed.data.body,
+          kind: parsed.data.kind ?? "NORMAL",
           audience: parsed.data.audience,
           storeIds: parsed.data.storeIds,
           attachments: parsed.data.attachments ?? undefined,

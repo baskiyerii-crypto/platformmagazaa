@@ -36,6 +36,7 @@ export const GET = withAuth(async (request, auth) => {
         id: true,
         title: true,
         body: true,
+        kind: true,
         audience: true,
         storeIds: true,
         attachments: true,

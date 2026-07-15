@@ -9,6 +9,7 @@ import { STORE_MENU } from "@/lib/menus";
 import {
   ANNOUNCEMENT_RECEIPT_STATUS_LABELS,
   thumbUrl,
+  type AnnouncementKind,
   type AnnouncementReceiptStatus,
   type PaginatedResponse,
 } from "@magaza/shared";
@@ -24,6 +25,7 @@ type Announcement = {
   id: string;
   title: string;
   body: string;
+  kind?: AnnouncementKind;
   attachments?: Array<{ label: string; url: string }> | null;
   receipt?: Receipt | null;
 };
@@ -228,10 +230,15 @@ export default function StoreAnnouncements() {
           <Card key={a.id}>
             <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
               <Text style={styles.cardTitle}>{a.title}</Text>
-              <StatusPill
-                label={ANNOUNCEMENT_RECEIPT_STATUS_LABELS[status]}
-                backgroundColor={STATUS_COLORS[status]}
-              />
+              <View style={{ alignItems: "flex-end", gap: 4 }}>
+                {a.kind === "KAMPANYA" && (
+                  <StatusPill label="Kampanya" backgroundColor="#fde68a" />
+                )}
+                <StatusPill
+                  label={ANNOUNCEMENT_RECEIPT_STATUS_LABELS[status]}
+                  backgroundColor={STATUS_COLORS[status]}
+                />
+              </View>
             </View>
             <Text style={styles.cardBody}>{a.body}</Text>
             {Array.isArray(a.attachments) &&

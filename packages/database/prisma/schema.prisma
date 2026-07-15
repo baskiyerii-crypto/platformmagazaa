@@ -61,6 +61,11 @@ enum AnnouncementAudience {
   SELECTED_STORES
 }
 
+enum AnnouncementKind {
+  NORMAL
+  KAMPANYA
+}
+
 enum AnnouncementReceiptStatus {
   BEKLIYOR
   OKUNDU
@@ -102,6 +107,7 @@ model User {
   notifications        Notification[]
   announcements        Announcement[] @relation("AnnouncementAuthor")
   mediaAssets          MediaAsset[]
+  adExpenses           AdExpense[]    @relation("AdExpenseAuthor")
   @@index([storeId])
   @@index([role])
 }
@@ -123,6 +129,7 @@ model Store {
   supportTickets  SupportTicket[]
   announcementReceipts AnnouncementReceipt[]
   mediaAssets     MediaAsset[]
+  adExpenses      AdExpense[]
 }
 
 model AreaCategory {
@@ -387,6 +394,7 @@ model Announcement {
   id          String               @id @default(cuid())
   title       String
   body        String               @db.Text
+  kind        AnnouncementKind     @default(NORMAL)
   audience    AnnouncementAudience @default(ALL_STORES)
   storeIds    String[]             @default([])
   attachments Json?
@@ -398,8 +406,48 @@ model Announcement {
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
   receipts    AnnouncementReceipt[]
+  adExpenses  AdExpense[]
 
   @@index([active, publishedAt])
+  @@index([kind, active])
+}
+
+model AdExpenseCategory {
+  id        String   @id @default(cuid())
+  name      String
+  code      String?
+  active    Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  expenses  AdExpense[]
+
+  @@index([active, sortOrder])
+}
+
+model AdExpense {
+  id             String             @id @default(cuid())
+  storeId        String
+  store          Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categoryId     String
+  category       AdExpenseCategory  @relation(fields: [categoryId], references: [id])
+  announcementId String?
+  announcement   Announcement?      @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  title          String
+  quantity       Int
+  totalPrice     Decimal            @db.Decimal(14, 2)
+  expenseDate    DateTime           @db.Date
+  note           String?
+  createdById    String
+  createdBy      User               @relation("AdExpenseAuthor", fields: [createdById], references: [id])
+  active         Boolean            @default(true)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  @@index([storeId, expenseDate])
+  @@index([categoryId, expenseDate])
+  @@index([announcementId])
+  @@index([active, expenseDate])
 }
 
 model AnnouncementReceipt {

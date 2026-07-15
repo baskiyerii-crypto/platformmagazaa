@@ -143,6 +143,14 @@ export const ANNOUNCEMENT_AUDIENCE_LABELS: Record<AnnouncementAudience, string> 
   SELECTED_STORES: "Seçili Mağazalar",
 };
 
+export const ANNOUNCEMENT_KINDS = ["NORMAL", "KAMPANYA"] as const;
+export type AnnouncementKind = (typeof ANNOUNCEMENT_KINDS)[number];
+
+export const ANNOUNCEMENT_KIND_LABELS: Record<AnnouncementKind, string> = {
+  NORMAL: "Normal",
+  KAMPANYA: "Kampanya",
+};
+
 export const ANNOUNCEMENT_RECEIPT_STATUSES = [
   "BEKLIYOR",
   "OKUNDU",

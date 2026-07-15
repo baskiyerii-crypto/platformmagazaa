@@ -7,8 +7,10 @@ import { API_URL } from "@/lib/config";
 import { ADMIN_MENU } from "@/lib/menus";
 import {
   ANNOUNCEMENT_AUDIENCE_LABELS,
+  ANNOUNCEMENT_KIND_LABELS,
   ANNOUNCEMENT_RECEIPT_STATUS_LABELS,
   thumbUrl,
+  type AnnouncementKind,
   type AnnouncementReceiptStatus,
 } from "@magaza/shared";
 import { colors } from "@/components/theme";
@@ -27,6 +29,7 @@ type Announcement = {
   id: string;
   title: string;
   body: string;
+  kind?: AnnouncementKind;
   attachments?: Array<{ label: string; url: string }> | null;
   receipts?: Receipt[];
 };
@@ -37,6 +40,7 @@ export default function AdminAnnouncements() {
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [kind, setKind] = useState<AnnouncementKind>("NORMAL");
   const [audience, setAudience] = useState<"ALL_STORES" | "SELECTED_STORES">("ALL_STORES");
   const [storeIds, setStoreIds] = useState<string[]>([]);
   const [publishing, setPublishing] = useState(false);
@@ -65,9 +69,10 @@ export default function AdminAnnouncements() {
     if (publishing) return;
     setPublishing(true);
     try {
-      await api.post("/api/v1/admin/announcements", { title, body, audience, storeIds, attachments: [] });
+      await api.post("/api/v1/admin/announcements", { title, body, kind, audience, storeIds, attachments: [] });
       setTitle("");
       setBody("");
+      setKind("NORMAL");
       setStoreIds([]);
       await load();
     } catch (e) {
@@ -112,6 +117,11 @@ export default function AdminAnnouncements() {
           <Text style={styles.cardTitle}>Yeni Duyuru</Text>
           <InputField label="Başlık" value={title} onChangeText={setTitle} />
           <InputField label="İçerik" value={body} onChangeText={setBody} multiline />
+          <Text style={styles.inputLabel}>Tür: {ANNOUNCEMENT_KIND_LABELS[kind]}</Text>
+          <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+            <PrimaryButton label="Normal" onPress={() => setKind("NORMAL")} />
+            <PrimaryButton label="Kampanya" onPress={() => setKind("KAMPANYA")} />
+          </View>
           <Text style={styles.inputLabel}>Hedef: {ANNOUNCEMENT_AUDIENCE_LABELS[audience]}</Text>
           <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
             <PrimaryButton label="Tüm Mağazalar" onPress={() => setAudience("ALL_STORES")} />
@@ -140,6 +150,9 @@ export default function AdminAnnouncements() {
         return (
           <Card key={a.id}>
             <Text style={styles.cardTitle}>{a.title}</Text>
+            {a.kind === "KAMPANYA" && (
+              <StatusPill label="Kampanya" backgroundColor="#fde68a" />
+            )}
             <Text style={styles.cardBody}>{a.body}</Text>
             {Array.isArray(a.attachments) &&
               a.attachments.map((att, i) => (

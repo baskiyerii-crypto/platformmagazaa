@@ -10,6 +10,7 @@ export default function AdminLayout() {
       <Stack.Screen name="catalog" />
       <Stack.Screen name="stores" />
       <Stack.Screen name="announcements" />
+      <Stack.Screen name="ad-expenses" />
       <Stack.Screen name="media" />
       <Stack.Screen name="definitions" />
       <Stack.Screen name="support" />

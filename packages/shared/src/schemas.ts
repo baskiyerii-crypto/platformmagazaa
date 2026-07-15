@@ -218,6 +218,7 @@ export const announcementAttachmentSchema = z.object({
 export const createAnnouncementSchema = z.object({
   title: z.string().min(3, "Başlık en az 3 karakter"),
   body: z.string().min(10, "İçerik en az 10 karakter"),
+  kind: z.enum(["NORMAL", "KAMPANYA"]).default("NORMAL"),
   audience: z.enum(["ALL_STORES", "SELECTED_STORES"]),
   storeIds: z.array(z.string()).default([]),
   attachments: z.array(announcementAttachmentSchema).optional(),
@@ -226,6 +227,31 @@ export const createAnnouncementSchema = z.object({
 });
 
 export const updateAnnouncementSchema = createAnnouncementSchema.partial();
+
+export const createAdExpenseCategorySchema = z.object({
+  name: z.string().min(2, "Kategori adı en az 2 karakter"),
+  code: z.string().optional().nullable(),
+  sortOrder: z.number().int().default(0),
+  active: z.boolean().default(true),
+});
+
+export const updateAdExpenseCategorySchema = createAdExpenseCategorySchema.partial();
+
+export const adExpenseLineSchema = z.object({
+  categoryId: z.string().min(1),
+  announcementId: z.string().optional().nullable(),
+  title: z.string().min(1, "Başlık gerekli"),
+  quantity: z.number().int().positive("Adet 1 veya daha fazla olmalı"),
+  totalPrice: z.number().positive("Toplam fiyat 0'dan büyük olmalı"),
+  expenseDate: z.string().min(1, "Tarih gerekli"),
+  note: z.string().optional().nullable(),
+});
+
+export const createAdExpensesSchema = z.object({
+  items: z.array(adExpenseLineSchema).min(1, "En az bir gider satırı ekleyin"),
+});
+
+export const updateAdExpenseSchema = adExpenseLineSchema.partial();
 
 export type LoginInput = z.infer<typeof loginSchema>;
 export type CreateStoreInput = z.infer<typeof createStoreSchema>;

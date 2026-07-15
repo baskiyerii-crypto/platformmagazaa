@@ -60,6 +60,7 @@ export const PATCH = withAuthParams<{ id: string }>(
       data: {
         ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
         ...(parsed.data.body !== undefined ? { body: parsed.data.body } : {}),
+        ...(parsed.data.kind !== undefined ? { kind: parsed.data.kind } : {}),
         ...(parsed.data.audience !== undefined ? { audience: parsed.data.audience } : {}),
         ...(parsed.data.storeIds !== undefined ? { storeIds: parsed.data.storeIds } : {}),
         ...(parsed.data.attachments !== undefined

@@ -12,6 +12,7 @@ export default function StoreLayout() {
       <Stack.Screen name="signage" />
       <Stack.Screen name="catalog" />
       <Stack.Screen name="announcements" />
+      <Stack.Screen name="ad-expenses" />
       <Stack.Screen name="support" />
     </Stack>
   );

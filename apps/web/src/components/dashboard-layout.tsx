@@ -22,6 +22,7 @@ import {
   LifeBuoy,
   X,
   Smartphone,
+  CircleDollarSign,
 } from "lucide-react";
 import { isStaffRole } from "@magaza/shared";
 import type { UserRole } from "@magaza/shared";
@@ -42,6 +43,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/catalog", label: "Ürün Kataloğu", icon: Package },
   { href: "/admin/stores", label: "Mağazalar", icon: Store },
   { href: "/admin/announcements", label: "Duyurular", icon: Megaphone },
+  { href: "/admin/ad-expenses", label: "Reklam Giderleri", icon: CircleDollarSign },
   { href: "/admin/media", label: "Görsel Kütüphanesi", icon: Images },
   { href: "/admin/support", label: "Destek", icon: LifeBuoy },
   { href: "/admin/definitions", label: "Tanımlar", icon: Settings },
@@ -57,6 +59,7 @@ const storeNav: NavItem[] = [
   { href: "/store/signage", label: "Mağaza İçi", icon: ImageIcon },
   { href: "/store/catalog", label: "Ürün Talepleri", icon: Package },
   { href: "/store/announcements", label: "Duyurular", icon: Megaphone },
+  { href: "/store/ad-expenses", label: "Reklam Giderleri", icon: CircleDollarSign },
   { href: "/store/support", label: "Destek", icon: LifeBuoy },
   { href: "/store/requests", label: "Değişim Talepleri", icon: ClipboardList },
 ];

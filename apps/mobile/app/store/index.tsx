@@ -19,6 +19,7 @@ const STORE_LINKS = [
   { href: "/store/outdoor", label: "Açık Hava", desc: "Dış mekan alanları" },
   { href: "/store/catalog", label: "Ürün Talepleri", desc: "Katalog ürünleri" },
   { href: "/store/announcements", label: "Duyurular", desc: "Okundu / işleme / tamamla" },
+  { href: "/store/ad-expenses", label: "Reklam Giderleri", desc: "Kampanya ve reklam harcamaları" },
   { href: "/store/support", label: "Destek", desc: "Yöneticiye mesaj" },
   { href: "/store/requests", label: "Değişim Talepleri", desc: "Görsel değişimleri" },
   { href: "/notifications", label: "Bildirimler", desc: "Push bildirimleri" },
