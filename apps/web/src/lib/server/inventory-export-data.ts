@@ -21,6 +21,9 @@ export type InventoryExportRow = {
   status: string;
   imageUrl: string | null;
   createdAt: Date;
+  kind?: string;
+  camEn?: number | null;
+  camBoy?: number | null;
 };
 
 const EXPORT_MAX = 5000;
@@ -65,6 +68,9 @@ export async function fetchInventoryForExport(
         status: "",
         imageUrl: v.gorselUrl,
         createdAt: v.createdAt,
+        kind: v.kind,
+        camEn: v.camEn,
+        camBoy: v.camBoy,
       });
     }
   }
@@ -193,6 +199,9 @@ export function exportRowToApiItem(row: InventoryExportRow) {
     adet: row.adet ? Number(row.adet) : undefined,
     quantity: row.type === "CATALOG_REQUEST" && row.adet ? Number(row.adet) : undefined,
     konum: row.konum || undefined,
+    kind: row.kind,
+    camEn: row.camEn,
+    camBoy: row.camBoy,
     gorselUrl: row.type !== "CATALOG_REQUEST" ? row.imageUrl : undefined,
     storeImageUrl: row.type === "CATALOG_REQUEST" ? row.imageUrl : undefined,
     referenceImageUrl: row.type === "CATALOG_REQUEST" ? row.imageUrl : undefined,

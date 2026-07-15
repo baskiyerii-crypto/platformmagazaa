@@ -4,13 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, Download, FileSpreadsheet, FileText, LayoutGrid, List } from "lucide-react";
+import { Plus, Download, FileSpreadsheet, FileText, LayoutGrid, List, Pencil, Trash2 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DialogContent, DialogRoot } from "@/components/ui/dialog";
+import { ImageUploadPreview } from "@/components/image-upload-preview";
 import { PageHeader, SkeletonGrid } from "@/components/page-header";
 import { ClickableThumbnail, ImageLightbox } from "@/components/image-lightbox";
 import { queryKeys } from "@/lib/query-keys";
@@ -38,6 +40,13 @@ type InventoryItem = {
   store: { id: string; name: string };
   en?: number;
   boy?: number;
+  adet?: number;
+  quantity?: number;
+  konum?: string;
+  camEn?: number | null;
+  camBoy?: number | null;
+  kind?: string;
+  note?: string | null;
   gorselUrl?: string | null;
   storeImageUrl?: string | null;
   referenceImageUrl?: string | null;
@@ -52,6 +61,34 @@ const TYPE_LABELS: Record<string, string> = {
   STORE_SIGNAGE: "Mağaza İçi",
   CATALOG_REQUEST: "Ürün Talebi",
 };
+
+function deleteUrlFor(item: InventoryItem): string | null {
+  switch (item.type) {
+    case "AVM_VITRIN":
+      return `/api/v1/store/avm-vitrins/${item.id}`;
+    case "OUTDOOR":
+      return `/api/v1/store/outdoor-entries/${item.id}`;
+    case "STORE_SIGNAGE":
+      return `/api/v1/store/signage-entries/${item.id}`;
+    case "CATALOG_REQUEST":
+      return `/api/v1/catalog-requests/${item.id}`;
+    default:
+      return null;
+  }
+}
+
+function patchUrlFor(item: InventoryItem): string | null {
+  switch (item.type) {
+    case "AVM_VITRIN":
+      return `/api/v1/store/avm-vitrins/${item.id}`;
+    case "OUTDOOR":
+      return `/api/v1/store/outdoor-entries/${item.id}`;
+    case "STORE_SIGNAGE":
+      return `/api/v1/store/signage-entries/${item.id}`;
+    default:
+      return null;
+  }
+}
 
 type Props = {
   initialInventory?: PaginatedResponse<InventoryItem>;
@@ -91,11 +128,19 @@ function groupItemsByStore(items: InventoryItem[]) {
 function InventoryListRow({
   item,
   onImageClick,
+  onEdit,
+  onDelete,
+  busy,
 }: {
   item: InventoryItem;
   onImageClick: (src: string, title: string) => void;
+  onEdit: (item: InventoryItem) => void;
+  onDelete: (item: InventoryItem) => void;
+  busy: boolean;
 }) {
   const imageUrl = item.gorselUrl ?? item.storeImageUrl ?? item.referenceImageUrl;
+  const canEdit = Boolean(patchUrlFor(item));
+  const canDelete = Boolean(deleteUrlFor(item));
 
   return (
     <li className="flex gap-4 border-t px-4 py-3 first:border-t-0">
@@ -127,6 +172,23 @@ function InventoryListRow({
             </span>
           )}
         </div>
+        <div className="flex flex-wrap gap-2 pt-1">
+          {canEdit && (
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => onEdit(item)}>
+              <Pencil className="mr-1 h-3 w-3" /> Düzenle
+            </Button>
+          )}
+          {canDelete && (
+            <Button size="sm" variant="destructive" disabled={busy} onClick={() => onDelete(item)}>
+              <Trash2 className="mr-1 h-3 w-3" /> Sil
+            </Button>
+          )}
+          {item.type === "CATALOG_REQUEST" && (
+            <Button size="sm" variant="outline" asChild>
+              <Link href="/admin/requests">Talepler</Link>
+            </Button>
+          )}
+        </div>
       </div>
     </li>
   );
@@ -144,6 +206,15 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   const [addMode, setAddMode] = useState<"" | "avm" | "outdoor" | "signage">("");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [lightbox, setLightbox] = useState<{ src: string; title: string } | null>(null);
+  const [editItem, setEditItem] = useState<InventoryItem | null>(null);
+  const [editEn, setEditEn] = useState("");
+  const [editBoy, setEditBoy] = useState("");
+  const [editAdet, setEditAdet] = useState("1");
+  const [editKonum, setEditKonum] = useState("");
+  const [editCamEn, setEditCamEn] = useState("");
+  const [editCamBoy, setEditCamBoy] = useState("");
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
 
   function buildExportUrl(format: "excel" | "pdf") {
     const params = new URLSearchParams({ format });
@@ -190,6 +261,12 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
     setLightbox({ src, title });
   }
 
+  function refreshInventory() {
+    setExtraItems([]);
+    setPage(1);
+    queryClient.invalidateQueries({ queryKey: ["inventory"] });
+  }
+
   async function loadMore() {
     const nextPage = page + 1;
     const more = await fetchInventory({ storeId, type, search, page: nextPage });
@@ -204,14 +281,95 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
 
   function onInventoryAdded() {
     setAddMode("");
-    queryClient.invalidateQueries({ queryKey: ["inventory"] });
+    refreshInventory();
+  }
+
+  function openEdit(item: InventoryItem) {
+    if (!patchUrlFor(item)) return;
+    setEditItem(item);
+    setEditEn(item.en != null ? String(item.en) : "");
+    setEditBoy(item.boy != null ? String(item.boy) : "");
+    setEditAdet(item.adet != null ? String(item.adet) : "1");
+    setEditKonum(item.konum ?? "");
+    setEditCamEn(item.camEn != null ? String(item.camEn) : "");
+    setEditCamBoy(item.camBoy != null ? String(item.camBoy) : "");
+    setEditFile(null);
+  }
+
+  async function deleteItem(item: InventoryItem) {
+    const url = deleteUrlFor(item);
+    if (!url || busy) return;
+    if (!confirm(`Silinsin mi?\n${item.label}`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(url, { method: "DELETE" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Kayıt silinemedi.");
+        return;
+      }
+      refreshInventory();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveEdit() {
+    if (!editItem || busy) return;
+    const url = patchUrlFor(editItem);
+    if (!url) return;
+    setBusy(true);
+    try {
+      if (editFile) {
+        const fd = new FormData();
+        fd.append("file", editFile);
+        const fileRes = await fetch(url, { method: "PATCH", body: fd });
+        if (!fileRes.ok) {
+          const err = await fileRes.json().catch(() => ({}));
+          alert(err.error ?? "Görsel güncellenemedi.");
+          return;
+        }
+      }
+
+      const body: Record<string, unknown> = {
+        en: Number(editEn),
+        boy: Number(editBoy),
+      };
+
+      if (editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") {
+        body.adet = Number(editAdet);
+      }
+      if (editItem.type === "AVM_VITRIN") {
+        body.vitrinId = editItem.id;
+        body.kind = editItem.kind;
+        body.camEn = editCamEn ? Number(editCamEn) : null;
+        body.camBoy = editCamBoy ? Number(editCamBoy) : null;
+        body.konum = editItem.kind === "EKSTRA_ALAN" ? editKonum.trim() : null;
+      }
+
+      const res = await fetch(url, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error ?? "Kayıt güncellenemedi.");
+        return;
+      }
+      setEditItem(null);
+      setEditFile(null);
+      refreshInventory();
+    } finally {
+      setBusy(false);
+    }
   }
 
   const addStoreName = stores.find((s) => s.id === addStoreId)?.name;
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Envanter" subtitle="Mağazalara göre gruplanmış envanter kayıtları" />
+      <PageHeader title="Envanter" subtitle="Mağazalara göre gruplanmış envanter kayıtları — düzenle ve sil" />
 
       <section className="panel-section space-y-4">
         <div className="flex items-center gap-2">
@@ -357,6 +515,9 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
                     key={`${item.type}-${item.id}`}
                     item={item}
                     onImageClick={openImage}
+                    onEdit={openEdit}
+                    onDelete={deleteItem}
+                    busy={busy}
                   />
                 ))}
               </ul>
@@ -367,6 +528,8 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => {
             const imageUrl = img(item);
+            const canEdit = Boolean(patchUrlFor(item));
+            const canDelete = Boolean(deleteUrlFor(item));
             return (
             <Card key={`${item.type}-${item.id}`} className="overflow-hidden transition-shadow hover:shadow-md">
               {imageUrl && (
@@ -388,12 +551,76 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
                 <Link href={`/admin/stores/${item.store.id}`} className="inline-block text-xs font-medium text-primary hover:underline">
                   {item.store.name}
                 </Link>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {canEdit && (
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => openEdit(item)}>
+                      <Pencil className="mr-1 h-3 w-3" /> Düzenle
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button size="sm" variant="destructive" disabled={busy} onClick={() => deleteItem(item)}>
+                      <Trash2 className="mr-1 h-3 w-3" /> Sil
+                    </Button>
+                  )}
+                </div>
               </CardContent>
             </Card>
           );
           })}
         </div>
       )}
+
+      <DialogRoot open={!!editItem} onOpenChange={(o) => !o && setEditItem(null)}>
+        <DialogContent title="Envanter Düzenle">
+          {editItem && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{editItem.label}</p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label>En (cm)</Label>
+                  <Input value={editEn} onChange={(e) => setEditEn(e.target.value)} required />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Boy (cm)</Label>
+                  <Input value={editBoy} onChange={(e) => setEditBoy(e.target.value)} required />
+                </div>
+                {(editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") && (
+                  <div className="space-y-1.5">
+                    <Label>Adet</Label>
+                    <Input value={editAdet} onChange={(e) => setEditAdet(e.target.value)} required />
+                  </div>
+                )}
+                {editItem.type === "AVM_VITRIN" && editItem.kind === "EKSTRA_ALAN" && (
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Konum</Label>
+                    <Input value={editKonum} onChange={(e) => setEditKonum(e.target.value)} />
+                  </div>
+                )}
+                {editItem.type === "AVM_VITRIN" && editItem.kind !== "EKSTRA_ALAN" && (
+                  <>
+                    <div className="space-y-1.5">
+                      <Label>Cam En</Label>
+                      <Input value={editCamEn} onChange={(e) => setEditCamEn(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Cam Boy</Label>
+                      <Input value={editCamBoy} onChange={(e) => setEditCamBoy(e.target.value)} />
+                    </div>
+                  </>
+                )}
+              </div>
+              <ImageUploadPreview
+                existingUrl={editItem.gorselUrl}
+                file={editFile}
+                onFileChange={setEditFile}
+              />
+              <Button onClick={saveEdit} className="w-full" disabled={busy}>
+                {busy ? "Kaydediliyor..." : "Kaydet"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </DialogRoot>
 
       {lightbox && (
         <ImageLightbox
