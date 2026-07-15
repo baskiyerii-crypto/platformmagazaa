@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Text, Linking, View, Alert, ScrollView } from "react-native";
 import { Image } from "expo-image";
-import { Screen, Card, InputField, PrimaryButton, StatusPill, styles } from "@/components/ui";
+import { Screen, Card, InputField, PrimaryButton, SecondaryButton, StatusPill, styles } from "@/components/ui";
 import { api, getUser } from "@/lib/auth";
 import { API_URL } from "@/lib/config";
 import { ADMIN_MENU } from "@/lib/menus";
@@ -39,6 +39,8 @@ export default function AdminAnnouncements() {
   const [body, setBody] = useState("");
   const [audience, setAudience] = useState<"ALL_STORES" | "SELECTED_STORES">("ALL_STORES");
   const [storeIds, setStoreIds] = useState<string[]>([]);
+  const [publishing, setPublishing] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   async function load() {
     try {
@@ -60,14 +62,41 @@ export default function AdminAnnouncements() {
 
   async function publish() {
     if (!isAdmin) return Alert.alert("Yetki yok");
+    if (publishing) return;
+    setPublishing(true);
     try {
       await api.post("/api/v1/admin/announcements", { title, body, audience, storeIds, attachments: [] });
       setTitle("");
       setBody("");
-      load();
+      setStoreIds([]);
+      await load();
     } catch (e) {
       Alert.alert("Hata", e instanceof Error ? e.message : "Yayınlanamadı");
+    } finally {
+      setPublishing(false);
     }
+  }
+
+  async function removeAnnouncement(id: string, label: string) {
+    if (busyId) return;
+    Alert.alert("Duyuru silinsin mi?", label, [
+      { text: "İptal", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: async () => {
+          setBusyId(id);
+          try {
+            await api.delete(`/api/v1/admin/announcements/${id}`);
+            await load();
+          } catch (e) {
+            Alert.alert("Hata", e instanceof Error ? e.message : "Silinemedi");
+          } finally {
+            setBusyId(null);
+          }
+        },
+      },
+    ]);
   }
 
   function summary(receipts: Receipt[] = []) {
@@ -102,7 +131,7 @@ export default function AdminAnnouncements() {
                 {storeIds.includes(s.id) ? "☑" : "☐"} {s.name}
               </Text>
             ))}
-          <PrimaryButton label="Yayınla" onPress={publish} />
+          <PrimaryButton label={publishing ? "Yayınlanıyor..." : "Yayınla"} onPress={publish} loading={publishing} />
         </Card>
       )}
 
@@ -118,6 +147,14 @@ export default function AdminAnnouncements() {
                   {att.label}
                 </Text>
               ))}
+            {isAdmin && (
+              <View style={{ marginTop: 10 }}>
+                <SecondaryButton
+                  label={busyId === a.id ? "Siliniyor..." : "Sil"}
+                  onPress={() => removeAnnouncement(a.id, a.title)}
+                />
+              </View>
+            )}
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
               <StatusPill label={`Bekliyor ${s.BEKLIYOR}`} backgroundColor="#e2e8f0" />
               <StatusPill label={`Okundu ${s.OKUNDU}`} backgroundColor="#bfdbfe" />

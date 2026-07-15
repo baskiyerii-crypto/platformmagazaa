@@ -5,8 +5,14 @@ import { createAnnouncementSchema } from "@magaza/shared";
 import { notifyStoreUsers, notifyUsers } from "@/lib/notify";
 
 export const GET = withAuth(
-  async () => {
+  async (request) => {
+    const { searchParams } = new URL(request.url);
+    const includeInactive = searchParams.get("includeInactive") === "1";
+
+    const where = includeInactive ? {} : { active: true };
+
     const items = await prisma.announcement.findMany({
+      where,
       include: {
         createdBy: { select: { username: true } },
         receipts: {
@@ -23,6 +29,7 @@ export const GET = withAuth(
     });
 
     for (const item of items) {
+      if (!item.active) continue;
       const targetIds =
         item.audience === "ALL_STORES"
           ? allStores.map((s) => s.id)
@@ -43,6 +50,7 @@ export const GET = withAuth(
     }
 
     const refreshed = await prisma.announcement.findMany({
+      where,
       include: {
         createdBy: { select: { username: true } },
         receipts: {
@@ -125,6 +133,26 @@ export const POST = withAuth(
     }
 
     return NextResponse.json(announcement, { status: 201 });
+  },
+  { strictAdminOnly: true }
+);
+
+export const DELETE = withAuth(
+  async (request) => {
+    const body = await request.json().catch(() => null);
+    const ids = Array.isArray(body?.ids)
+      ? body.ids.filter((id: unknown): id is string => typeof id === "string" && id.length > 0)
+      : [];
+    if (ids.length === 0) {
+      return jsonError("Silinecek duyuru seçin", 400);
+    }
+
+    const result = await prisma.announcement.updateMany({
+      where: { id: { in: ids } },
+      data: { active: false },
+    });
+
+    return NextResponse.json({ success: true, deleted: result.count });
   },
   { strictAdminOnly: true }
 );

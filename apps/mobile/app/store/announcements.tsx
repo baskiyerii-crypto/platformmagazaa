@@ -53,6 +53,7 @@ export default function StoreAnnouncements() {
   }, []);
 
   async function act(id: string, action: "OKUNDU" | "ISLEME_ALINDI" | "TAMAMLANDI", files?: ImagePicker.ImagePickerAsset[]) {
+    if (loadingId) return;
     setLoadingId(id);
     try {
       let res: Response;
@@ -95,6 +96,7 @@ export default function StoreAnnouncements() {
   }
 
   async function completeWithPhotos(id: string) {
+    if (loadingId) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
       Alert.alert("İzin gerekli", "Galeri izni verilmeli");
@@ -148,19 +150,38 @@ export default function StoreAnnouncements() {
                 <PrimaryButton label={busy ? "..." : "Okudum"} onPress={() => act(a.id, "OKUNDU")} loading={busy} />
               )}
               {(status === "BEKLIYOR" || status === "OKUNDU") && (
-                <SecondaryButton label="İşleme Al" onPress={() => act(a.id, "ISLEME_ALINDI")} />
+                <SecondaryButton
+                  label="İşleme Al"
+                  onPress={() => {
+                    if (!busy) act(a.id, "ISLEME_ALINDI");
+                  }}
+                />
               )}
-              {status === "ISLEME_ALINDI" && (
+              {(status === "ISLEME_ALINDI" || status === "TAMAMLANDI") && (
                 <>
-                  <PrimaryButton label="Galeriden Görsel Ekle ve Tamamla" onPress={() => completeWithPhotos(a.id)} />
-                  <SecondaryButton label="Kamera ile Çek ve Tamamla" onPress={async () => {
-                    const permission = await ImagePicker.requestCameraPermissionsAsync();
-                    if (!permission.granted) return Alert.alert("İzin gerekli");
-                    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
-                    if (!result.canceled && result.assets[0]) {
-                      await act(a.id, "TAMAMLANDI", result.assets);
+                  <PrimaryButton
+                    label={
+                      busy
+                        ? "Yükleniyor..."
+                        : status === "ISLEME_ALINDI"
+                          ? "Galeriden Görsel Ekle ve Tamamla"
+                          : "Ek Görsel Ekle (Galeri)"
                     }
-                  }} />
+                    onPress={() => completeWithPhotos(a.id)}
+                    loading={busy}
+                  />
+                  <SecondaryButton
+                    label={busy ? "Bekleyin..." : "Kamera ile Çek"}
+                    onPress={async () => {
+                      if (busy) return;
+                      const permission = await ImagePicker.requestCameraPermissionsAsync();
+                      if (!permission.granted) return Alert.alert("İzin gerekli");
+                      const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+                      if (!result.canceled && result.assets[0]) {
+                        await act(a.id, "TAMAMLANDI", result.assets);
+                      }
+                    }}
+                  />
                 </>
               )}
             </View>
