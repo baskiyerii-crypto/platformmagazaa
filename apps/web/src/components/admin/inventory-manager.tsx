@@ -139,8 +139,8 @@ function InventoryListRow({
   busy: boolean;
 }) {
   const imageUrl = item.gorselUrl ?? item.storeImageUrl ?? item.referenceImageUrl;
-  const canEdit = Boolean(patchUrlFor(item));
-  const canDelete = Boolean(deleteUrlFor(item));
+  const editUrl = patchUrlFor(item);
+  const removeUrl = deleteUrlFor(item);
 
   return (
     <li className="flex flex-col gap-3 border-t px-4 py-3 first:border-t-0 sm:flex-row sm:items-center">
@@ -175,19 +175,31 @@ function InventoryListRow({
           </div>
         </div>
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2 sm:flex-col sm:items-stretch">
-        {canEdit && (
-          <Button size="sm" variant="outline" disabled={busy} onClick={() => onEdit(item)} className="min-w-[7.5rem]">
-            <Pencil className="mr-1 h-3 w-3" /> Düzenle
+      <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto sm:flex-col sm:items-stretch">
+        {editUrl && (
+          <Button
+            size="default"
+            variant="outline"
+            disabled={busy}
+            onClick={() => onEdit(item)}
+            className="min-w-[8rem] border-2 border-primary font-semibold"
+          >
+            <Pencil className="mr-1 h-4 w-4" /> Düzenle
           </Button>
         )}
-        {canDelete && (
-          <Button size="sm" variant="destructive" disabled={busy} onClick={() => onDelete(item)} className="min-w-[7.5rem]">
-            <Trash2 className="mr-1 h-3 w-3" /> Sil
+        {removeUrl && (
+          <Button
+            size="default"
+            variant="destructive"
+            disabled={busy}
+            onClick={() => onDelete(item)}
+            className="min-w-[8rem] font-semibold"
+          >
+            <Trash2 className="mr-1 h-4 w-4" /> Sil
           </Button>
         )}
         {item.type === "CATALOG_REQUEST" && (
-          <Button size="sm" variant="outline" asChild className="min-w-[7.5rem]">
+          <Button size="default" variant="outline" asChild className="min-w-[8rem]">
             <Link href="/admin/requests">Talepler</Link>
           </Button>
         )}
@@ -372,6 +384,11 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   return (
     <div className="space-y-6">
       <PageHeader title="Envanter" subtitle="Kayıtları düzenleyin veya silin — her satırın sağında Düzenle / Sil" />
+
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
+        <strong>Yönetici:</strong> Her kaydın sağında <strong>Düzenle</strong> ve <strong>Sil</strong> butonları vardır.
+        Görseller yüklenmiyorsa kaydı Düzenle ile yeniden fotoğraf ekleyin. (v9)
+      </div>
 
       <section className="panel-section space-y-4">
         <div className="flex items-center gap-2">
