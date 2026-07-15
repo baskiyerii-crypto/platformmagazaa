@@ -1,8 +1,13 @@
+# Fallback: Coolify Nixpacks kullanıyorsa imajı biraz küçült.
+# ÖNERİLEN: Coolify → Build Pack = Dockerfile (çok daha küçük / stabil).
+
 [phases.setup]
 nixPkgs = ["nodejs_22", "pnpm", "openssl"]
 
 [variables]
 BUILDX_NO_DEFAULT_ATTESTATIONS = "1"
+NODE_ENV = "production"
+NEXT_TELEMETRY_DISABLED = "1"
 
 [phases.install]
 cmds = ["corepack enable && pnpm install --frozen-lockfile"]
@@ -10,8 +15,10 @@ cmds = ["corepack enable && pnpm install --frozen-lockfile"]
 [phases.build]
 cmds = [
   "pnpm --filter @magaza/database generate",
-  "pnpm --filter @magaza/web build"
+  "pnpm --filter @magaza/web build",
+  "rm -rf apps/mobile apps/web/.next/cache .git node_modules/.cache node_modules/.pnpm/*/node_modules/@types 2>/dev/null || true",
+  "pnpm store prune || true",
 ]
 
 [start]
-cmd = "mkdir -p ${UPLOAD_DIR:-/app/uploads} && pnpm --filter @magaza/web start"
+cmd = "mkdir -p ${UPLOAD_DIR:-/app/uploads} && (cd packages/database && npx prisma db push --skip-generate || true) && pnpm --filter @magaza/web start"

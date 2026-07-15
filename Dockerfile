@@ -1,4 +1,4 @@
-# Coolify / production image for @magaza/web (pnpm monorepo)
+# Coolify: Build Pack = Dockerfile (Nixpacks kullanmayın — imaj şişip unpack’te düşer)
 FROM node:22-bookworm-slim AS base
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
@@ -21,7 +21,8 @@ COPY . .
 RUN pnpm --filter @magaza/database generate
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-RUN pnpm --filter @magaza/web build
+RUN pnpm --filter @magaza/web build \
+  && rm -rf apps/web/.next/cache apps/mobile node_modules/.cache
 
 FROM base AS runner
 ENV NODE_ENV=production
@@ -31,15 +32,15 @@ ENV HOSTNAME=0.0.0.0
 ENV UPLOAD_DIR=/app/uploads
 WORKDIR /app
 
-RUN mkdir -p /app/uploads \
-  && npm install -g prisma@6.19.3
+RUN mkdir -p /app/uploads /app/apps/web/public \
+  && npm install -g prisma@6.19.3 --omit=dev
 
+# Next standalone (küçük runtime)
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/packages/database/prisma ./prisma
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh \
-  && mkdir -p ./apps/web/public
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 3000
 CMD ["/app/docker-entrypoint.sh"]

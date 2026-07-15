@@ -7,16 +7,25 @@
 **/.env
 **/.env.*
 !**/.env.example
-apps/mobile/android
-apps/mobile/ios
-apps/mobile/.expo
-apps/mobile/node_modules
-**/*.md
-# Uploaded media on disk — never exclude the API route under src/app/api/v1/uploads
+
+# Mobil — sadece package.json workspace için kalsın
+apps/mobile/**
+!apps/mobile/package.json
+
+# Yerel upload’lar
 /uploads/
 apps/web/uploads/
 apps/*/uploads/
+
+**/*.md
 **/.DS_Store
 **/coverage
 **/.cursor
 agent-transcripts
+**/android
+**/ios
+**/.expo
+**/*.apk
+**/*.aab
+**/tsconfig.tsbuildinfo
+**/*.log
