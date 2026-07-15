@@ -9,13 +9,15 @@ import {
   Platform,
   StyleSheet,
 } from "react-native";
-import { ReactNode } from "react";
+import { ReactNode, useMemo } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AppHeader } from "./app-header";
 import { NotificationBell } from "./notification-bell";
 import { DeveloperFooter } from "./developer-footer";
 import type { MenuItem } from "@/lib/menus";
-import { colors, radius, spacing, shadow } from "./theme";
+import { colors, radius, spacing, shadow, CARD_TINTS } from "./theme";
+
+let cardSeq = 0;
 
 export function Screen({
   children,
@@ -56,7 +58,26 @@ export function Screen({
 }
 
 export function Card({ children }: { children: ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
+  const tint = useMemo(() => {
+    const t = CARD_TINTS[cardSeq % CARD_TINTS.length];
+    cardSeq += 1;
+    return t;
+  }, []);
+
+  return (
+    <View
+      style={[
+        styles.card,
+        {
+          backgroundColor: tint.bg,
+          borderLeftColor: tint.accent,
+          borderLeftWidth: 4,
+        },
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 export function PrimaryButton({
@@ -135,11 +156,17 @@ export function InputField({
 }
 
 export function StatCard({ label, value }: { label: string; value: number | string }) {
+  const tint = useMemo(() => {
+    const t = CARD_TINTS[cardSeq % CARD_TINTS.length];
+    cardSeq += 1;
+    return t;
+  }, []);
+
   return (
-    <View style={styles.statCard}>
-      <View style={styles.statAccent} />
+    <View style={[styles.statCard, { backgroundColor: tint.bg, borderLeftColor: tint.accent, borderLeftWidth: 4 }]}>
+      <View style={[styles.statAccent, { backgroundColor: tint.accent }]} />
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
+      <Text style={[styles.statValue, { color: tint.accent }]}>{value}</Text>
     </View>
   );
 }

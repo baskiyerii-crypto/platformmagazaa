@@ -153,7 +153,7 @@ export function OutdoorManager({ storeId, adminMode, formOnly, storeName, onSucc
       )}
 
       {formOnly && (
-        <div className="rounded-xl border bg-white p-4">
+        <div className="card-surface rounded-xl border p-4">
           <h3 className="font-semibold">Açık Hava Kaydı — {storeName ?? "Mağaza"}</h3>
         </div>
       )}

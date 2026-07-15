@@ -3,9 +3,9 @@
  * Mobil ve web aynı marka renklerini kullanır.
  */
 export const APP_THEME = {
-  background: "#F8FAFC",
+  background: "#E8EEF5",
   foreground: "#0F172A",
-  card: "#FFFFFF",
+  card: "#F5F8FC",
   primary: "#2563EB",
   primaryDark: "#1D4ED8",
   primaryForeground: "#F8FAFC",
@@ -15,7 +15,7 @@ export const APP_THEME = {
   accent: "#DBEAFE",
   accentForeground: "#1E40AF",
   accentMuted: "#BFDBFE",
-  border: "#E2E8F0",
+  border: "#CBD5E1",
   sidebar: "#0F172A",
   sidebarForeground: "#F1F5F9",
   sidebarMuted: "#94A3B8",

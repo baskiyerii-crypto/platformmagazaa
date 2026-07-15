@@ -559,7 +559,7 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
       ) : viewMode === "list" ? (
         <div className="space-y-6">
           {storeGroups.map(({ store, items: storeItems }) => (
-            <section key={store.id} className="overflow-hidden rounded-xl border bg-card">
+            <section key={store.id} className="card-surface overflow-hidden rounded-xl border">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
                 <div className="flex items-center gap-2">
                   <Link href={`/admin/stores/${store.id}`} className="font-semibold text-primary hover:underline">

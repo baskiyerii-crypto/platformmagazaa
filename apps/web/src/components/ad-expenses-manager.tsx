@@ -63,7 +63,6 @@ export function AdminAdExpensesManager() {
   const [storeId, setStoreId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [link, setLink] = useState<"all" | "campaign" | "general">("all");
 
   const query = useMemo(() => {
     const p = new URLSearchParams();
@@ -73,9 +72,33 @@ export function AdminAdExpensesManager() {
     if (storeId) p.set("storeId", storeId);
     if (dateFrom) p.set("dateFrom", dateFrom);
     if (dateTo) p.set("dateTo", dateTo);
-    if (link !== "all") p.set("link", link);
     return p.toString();
-  }, [period, categoryId, announcementId, storeId, dateFrom, dateTo, link]);
+  }, [period, categoryId, announcementId, storeId, dateFrom, dateTo]);
+
+  const campaignExpenses = useMemo(
+    () => expenses.filter((e) => e.announcement?.id),
+    [expenses]
+  );
+  const specialExpenses = useMemo(
+    () => expenses.filter((e) => !e.announcement?.id),
+    [expenses]
+  );
+  const campaignSummaryRows = useMemo(
+    () => (summary?.byCampaignStore ?? []).filter((r) => r.announcementId),
+    [summary]
+  );
+  const specialSummaryRows = useMemo(
+    () => (summary?.byCampaignStore ?? []).filter((r) => !r.announcementId),
+    [summary]
+  );
+  const campaignTotal = useMemo(
+    () => campaignExpenses.reduce((s, e) => s + e.totalPrice, 0),
+    [campaignExpenses]
+  );
+  const specialTotal = useMemo(
+    () => specialExpenses.reduce((s, e) => s + e.totalPrice, 0),
+    [specialExpenses]
+  );
 
   async function loadCats() {
     const res = await fetch("/api/v1/admin/ad-expense-categories?includeInactive=1");
@@ -153,15 +176,63 @@ export function AdminAdExpensesManager() {
     await loadData();
   }
 
-  function downloadExcel() {
-    window.open(`/api/v1/admin/export/ad-expenses?format=excel&${query}`, "_blank");
+  function downloadExcel(link?: "campaign" | "general") {
+    const p = new URLSearchParams(query);
+    if (link) p.set("link", link);
+    window.open(`/api/v1/admin/export/ad-expenses?format=excel&${p.toString()}`, "_blank");
+  }
+
+  function ExpenseTable({ rows, showCampaign }: { rows: Expense[]; showCampaign: boolean }) {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/50 text-left">
+            <tr>
+              <th className="px-3 py-2">Tarih</th>
+              <th className="px-3 py-2">Mağaza</th>
+              <th className="px-3 py-2">Kategori</th>
+              {showCampaign ? <th className="px-3 py-2">Kampanya</th> : null}
+              <th className="px-3 py-2">Başlık</th>
+              <th className="px-3 py-2">Adet</th>
+              <th className="px-3 py-2">Toplam</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((e) => (
+              <tr key={e.id} className="border-t">
+                <td className="px-3 py-2">{new Date(e.expenseDate).toLocaleDateString("tr-TR")}</td>
+                <td className="px-3 py-2">{e.store.name}</td>
+                <td className="px-3 py-2">{e.category.name}</td>
+                {showCampaign ? <td className="px-3 py-2">{e.announcement?.title ?? "—"}</td> : null}
+                <td className="px-3 py-2">{e.title}</td>
+                <td className="px-3 py-2">{e.quantity}</td>
+                <td className="px-3 py-2 font-medium">{formatMoney(e.totalPrice)} TL</td>
+                <td className="px-3 py-2">
+                  <Button size="sm" variant="ghost" onClick={() => deleteExpense(e.id)}>
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={showCampaign ? 8 : 7} className="px-3 py-6 text-center text-muted-foreground">
+                  Kayıt yok
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Reklam Giderleri"
-        subtitle="Kategoriler, mağaza harcamaları ve Excel raporları"
+        subtitle="Kampanya ve özel (kampanya dışı) giderler ayrı listelenir"
       />
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
@@ -202,15 +273,23 @@ export function AdminAdExpensesManager() {
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
           <CardTitle className="text-base">Filtre & Excel</CardTitle>
-          <Button variant="outline" onClick={downloadExcel}>
-            <Download className="mr-1 h-4 w-4" /> Excel İndir
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" size="sm" onClick={() => downloadExcel("campaign")}>
+              <Download className="mr-1 h-4 w-4" /> Kampanya Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => downloadExcel("general")}>
+              <Download className="mr-1 h-4 w-4" /> Özel Excel
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => downloadExcel()}>
+              <Download className="mr-1 h-4 w-4" /> Tümü
+            </Button>
+          </div>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1">
             <Label className="text-xs">Dönem</Label>
             <select className="field-select" value={period} onChange={(e) => setPeriod(e.target.value as typeof period)}>
-              <option value="">Özel / Tümü</option>
+              <option value="">Özel tarih / Tümü</option>
               <option value="day">Günlük (bugün)</option>
               <option value="month">Aylık (bu ay)</option>
               <option value="year">Yıllık (bu yıl)</option>
@@ -226,9 +305,9 @@ export function AdminAdExpensesManager() {
             </select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Kampanya</Label>
+            <Label className="text-xs">Kampanya (kampanya listesi için)</Label>
             <select className="field-select" value={announcementId} onChange={(e) => setAnnouncementId(e.target.value)}>
-              <option value="">Tümü</option>
+              <option value="">Tüm kampanyalar</option>
               {campaigns.map((c) => (
                 <option key={c.id} value={c.id}>{c.title}</option>
               ))}
@@ -244,14 +323,6 @@ export function AdminAdExpensesManager() {
             </select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Bağlantı</Label>
-            <select className="field-select" value={link} onChange={(e) => setLink(e.target.value as typeof link)}>
-              <option value="all">Tümü</option>
-              <option value="campaign">Kampanyaya bağlı</option>
-              <option value="general">Kampanya dışı</option>
-            </select>
-          </div>
-          <div className="space-y-1">
             <Label className="text-xs">Başlangıç</Label>
             <Input type="date" value={dateFrom} onChange={(e) => { setDateFrom(e.target.value); setPeriod(""); }} />
           </div>
@@ -263,84 +334,105 @@ export function AdminAdExpensesManager() {
       </Card>
 
       {summary && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">
-              Özet — {summary.count} kayıt · {formatMoney(summary.grandTotal)} TL
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/50 text-left">
-                <tr>
-                  <th className="px-3 py-2">Kampanya</th>
-                  <th className="px-3 py-2">Mağaza</th>
-                  <th className="px-3 py-2">Satır</th>
-                  <th className="px-3 py-2">Toplam</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.byCampaignStore.map((row) => (
-                  <tr key={`${row.announcementId}-${row.storeId}`} className="border-t">
-                    <td className="px-3 py-2">{row.announcementTitle}</td>
-                    <td className="px-3 py-2">{row.storeName}</td>
-                    <td className="px-3 py-2">{row.count}</td>
-                    <td className="px-3 py-2 font-medium">{formatMoney(row.total)} TL</td>
-                  </tr>
-                ))}
-                {!summary.byCampaignStore.length && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Kampanya özeti — {campaignExpenses.length} kayıt · {formatMoney(campaignTotal)} TL
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left">
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">Kayıt yok</td>
+                    <th className="px-3 py-2">Kampanya</th>
+                    <th className="px-3 py-2">Mağaza</th>
+                    <th className="px-3 py-2">Satır</th>
+                    <th className="px-3 py-2">Toplam</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </CardContent>
-        </Card>
+                </thead>
+                <tbody>
+                  {campaignSummaryRows.map((row) => (
+                    <tr key={`${row.announcementId}-${row.storeId}`} className="border-t">
+                      <td className="px-3 py-2">{row.announcementTitle}</td>
+                      <td className="px-3 py-2">{row.storeName}</td>
+                      <td className="px-3 py-2">{row.count}</td>
+                      <td className="px-3 py-2 font-medium">{formatMoney(row.total)} TL</td>
+                    </tr>
+                  ))}
+                  {!campaignSummaryRows.length && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">Kampanya gideri yok</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                Özel gider özeti — {specialExpenses.length} kayıt · {formatMoney(specialTotal)} TL
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr>
+                    <th className="px-3 py-2">Tür</th>
+                    <th className="px-3 py-2">Mağaza</th>
+                    <th className="px-3 py-2">Satır</th>
+                    <th className="px-3 py-2">Toplam</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {specialSummaryRows.map((row) => (
+                    <tr key={`ozel-${row.storeId}`} className="border-t">
+                      <td className="px-3 py-2">Özel (kampanya dışı)</td>
+                      <td className="px-3 py-2">{row.storeName}</td>
+                      <td className="px-3 py-2">{row.count}</td>
+                      <td className="px-3 py-2 font-medium">{formatMoney(row.total)} TL</td>
+                    </tr>
+                  ))}
+                  {!specialSummaryRows.length && (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">Özel gider yok</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Gider Listesi</CardTitle>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+          <div>
+            <CardTitle className="text-base">Kampanya Giderleri</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {campaignExpenses.length} satır · {formatMoney(campaignTotal)} TL
+            </p>
+          </div>
+          <Badge>Kampanya</Badge>
         </CardHeader>
-        <CardContent className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50 text-left">
-              <tr>
-                <th className="px-3 py-2">Tarih</th>
-                <th className="px-3 py-2">Mağaza</th>
-                <th className="px-3 py-2">Kategori</th>
-                <th className="px-3 py-2">Kampanya</th>
-                <th className="px-3 py-2">Başlık</th>
-                <th className="px-3 py-2">Adet</th>
-                <th className="px-3 py-2">Toplam</th>
-                <th className="px-3 py-2" />
-              </tr>
-            </thead>
-            <tbody>
-              {expenses.map((e) => (
-                <tr key={e.id} className="border-t">
-                  <td className="px-3 py-2">{new Date(e.expenseDate).toLocaleDateString("tr-TR")}</td>
-                  <td className="px-3 py-2">{e.store.name}</td>
-                  <td className="px-3 py-2">{e.category.name}</td>
-                  <td className="px-3 py-2">{e.announcement?.title ?? "—"}</td>
-                  <td className="px-3 py-2">{e.title}</td>
-                  <td className="px-3 py-2">{e.quantity}</td>
-                  <td className="px-3 py-2 font-medium">{formatMoney(e.totalPrice)} TL</td>
-                  <td className="px-3 py-2">
-                    <Button size="sm" variant="ghost" onClick={() => deleteExpense(e.id)}>
-                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-              {!expenses.length && (
-                <tr>
-                  <td colSpan={8} className="px-3 py-6 text-center text-muted-foreground">Kayıt yok</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <CardContent>
+          <ExpenseTable rows={campaignExpenses} showCampaign />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+          <div>
+            <CardTitle className="text-base">Özel Giderler</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Kampanya dışı reklam giderleri · {specialExpenses.length} satır · {formatMoney(specialTotal)} TL
+            </p>
+          </div>
+          <Badge variant="secondary">Özel</Badge>
+        </CardHeader>
+        <CardContent>
+          <ExpenseTable rows={specialExpenses} showCampaign={false} />
         </CardContent>
       </Card>
     </div>

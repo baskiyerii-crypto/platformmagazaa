@@ -303,7 +303,7 @@ export function AvmManager({
       )}
 
       {formOnly && (
-        <div className="rounded-xl border bg-white p-4">
+        <div className="card-surface rounded-xl border p-4">
           <h3 className="font-semibold">AVM Kaydı — {storeName ?? "Mağaza"}</h3>
         </div>
       )}
@@ -340,7 +340,7 @@ export function AvmManager({
           <CardContent>
             <form onSubmit={submitVitrinOrExtra} className="space-y-6">
               {vitrinForms.map((v, i) => (
-                <div key={i} className="space-y-3 rounded-2xl border bg-white/80 p-4">
+                <div key={i} className="card-surface space-y-3 rounded-2xl border p-4">
                   <Label>
                     {sectionTab === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin"} {v.siraNo}
                   </Label>
