@@ -72,6 +72,8 @@ export const GET = withAuth(async (request, auth) => {
   });
 
   return NextResponse.json(paginatedResponse(mapped, total, page, limit), {
-    headers: { "Cache-Control": "private, max-age=30" },
+    headers: {
+      "Cache-Control": "private, no-store, no-cache, must-revalidate",
+    },
   });
 });

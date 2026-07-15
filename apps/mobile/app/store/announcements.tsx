@@ -41,7 +41,8 @@ export default function StoreAnnouncements() {
 
   async function load() {
     try {
-      const d = await api.getCached<PaginatedResponse<Announcement>>("/api/v1/announcements", 30_000);
+      // Cache kullanma: Okudum sonrası eski durum görünmesin
+      const d = await api.get<PaginatedResponse<Announcement>>("/api/v1/announcements");
       setItems(d.items);
     } catch {
       /* handled globally */
@@ -88,6 +89,23 @@ export default function StoreAnnouncements() {
         const err = await res.json().catch(() => ({}));
         Alert.alert("Hata", err.error ?? "İşlem başarısız");
         return;
+      }
+      const updated = await res.json().catch(() => null);
+      if (updated?.status) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  receipt: {
+                    id: updated.id ?? item.receipt?.id ?? "",
+                    status: updated.status,
+                    completionImages: updated.completionImages ?? item.receipt?.completionImages ?? [],
+                  },
+                }
+              : item
+          )
+        );
       }
       await load();
     } finally {
@@ -149,7 +167,7 @@ export default function StoreAnnouncements() {
               {status === "BEKLIYOR" && (
                 <PrimaryButton label={busy ? "..." : "Okudum"} onPress={() => act(a.id, "OKUNDU")} loading={busy} />
               )}
-              {(status === "BEKLIYOR" || status === "OKUNDU") && (
+              {status === "OKUNDU" && (
                 <SecondaryButton
                   label="İşleme Al"
                   onPress={() => {

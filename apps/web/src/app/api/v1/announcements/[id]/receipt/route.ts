@@ -5,7 +5,7 @@ import { saveUploadedFile } from "@/lib/upload";
 
 const STORE_TRANSITIONS = {
   OKUNDU: ["BEKLIYOR"],
-  ISLEME_ALINDI: ["OKUNDU", "BEKLIYOR"],
+  ISLEME_ALINDI: ["OKUNDU"],
   TAMAMLANDI: ["ISLEME_ALINDI"],
 } as const;
 

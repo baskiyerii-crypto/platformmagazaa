@@ -48,7 +48,7 @@ type Announcement = {
 
 const STATUS_BADGE: Record<AnnouncementReceiptStatus, "secondary" | "default" | "outline"> = {
   BEKLIYOR: "secondary",
-  OKUNDU: "outline",
+  OKUNDU: "default",
   ISLEME_ALINDI: "default",
   TAMAMLANDI: "default",
 };
@@ -541,7 +541,7 @@ export function StoreAnnouncementsView() {
   const [error, setError] = useState("");
 
   async function load() {
-    const res = await fetch("/api/v1/announcements");
+    const res = await fetch("/api/v1/announcements", { cache: "no-store" });
     const data: PaginatedResponse<Announcement> = await res.json();
     setItems(data.items);
   }
@@ -583,6 +583,7 @@ export function StoreAnnouncementsView() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ action }),
+          cache: "no-store",
         });
       }
 
@@ -591,6 +592,31 @@ export function StoreAnnouncementsView() {
         setError(data.error ?? "İşlem başarısız");
         return;
       }
+
+      const updated = await res.json().catch(() => null);
+      // Anında UI güncelle — liste cache'i yüzünden geri kaymasın
+      if (updated?.status) {
+        setItems((prev) =>
+          prev.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  receipt: {
+                    id: updated.id ?? item.receipt?.id ?? "",
+                    status: updated.status,
+                    readAt: updated.readAt ?? item.receipt?.readAt,
+                    processingAt: updated.processingAt ?? item.receipt?.processingAt,
+                    completedAt: updated.completedAt ?? item.receipt?.completedAt,
+                    completionImages:
+                      updated.completionImages ?? item.receipt?.completionImages ?? [],
+                    note: updated.note ?? item.receipt?.note,
+                  },
+                }
+              : item
+          )
+        );
+      }
+
       setFilesFor(id, null);
       await load();
     } finally {
@@ -668,7 +694,7 @@ export function StoreAnnouncementsView() {
                     Okudum
                   </Button>
                 )}
-                {(status === "BEKLIYOR" || status === "OKUNDU") && (
+                {(status === "OKUNDU") && (
                   <Button variant="secondary" disabled={busy} onClick={() => act(a.id, "ISLEME_ALINDI")}>
                     İşleme Al
                   </Button>
