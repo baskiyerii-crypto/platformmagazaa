@@ -177,9 +177,21 @@ export function AdminAdExpensesManager() {
   }
 
   function downloadExcel(link?: "campaign" | "general") {
-    const p = new URLSearchParams(query);
+    const p = new URLSearchParams();
+    if (period) p.set("period", period);
+    if (categoryId) p.set("categoryId", categoryId);
+    if (storeId) p.set("storeId", storeId);
+    if (dateFrom) p.set("dateFrom", dateFrom);
+    if (dateTo) p.set("dateTo", dateTo);
+    // Kampanya listesi: seçili kampanya filtresi geçerli
+    // Özel gider: kampanya ID gönderilmez (çakışmasın)
+    if (link === "campaign" && announcementId) {
+      p.set("announcementId", announcementId);
+    }
     if (link) p.set("link", link);
-    window.open(`/api/v1/admin/export/ad-expenses?format=excel&${p.toString()}`, "_blank");
+    else if (announcementId) p.set("announcementId", announcementId);
+    p.set("format", "excel");
+    window.open(`/api/v1/admin/export/ad-expenses?${p.toString()}`, "_blank");
   }
 
   function ExpenseTable({ rows, showCampaign }: { rows: Expense[]; showCampaign: boolean }) {
@@ -272,18 +284,8 @@ export function AdminAdExpensesManager() {
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 space-y-0">
-          <CardTitle className="text-base">Filtre & Excel</CardTitle>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" size="sm" onClick={() => downloadExcel("campaign")}>
-              <Download className="mr-1 h-4 w-4" /> Kampanya Excel
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => downloadExcel("general")}>
-              <Download className="mr-1 h-4 w-4" /> Özel Excel
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => downloadExcel()}>
-              <Download className="mr-1 h-4 w-4" /> Tümü
-            </Button>
-          </div>
+          <CardTitle className="text-base">Filtreler</CardTitle>
+          <p className="text-xs text-muted-foreground">Excel indirmeleri her listenin kendi kartında</p>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <div className="space-y-1">
@@ -414,7 +416,12 @@ export function AdminAdExpensesManager() {
               {campaignExpenses.length} satır · {formatMoney(campaignTotal)} TL
             </p>
           </div>
-          <Badge>Kampanya</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>Kampanya</Badge>
+            <Button size="sm" onClick={() => downloadExcel("campaign")}>
+              <Download className="mr-1 h-4 w-4" /> Kampanya Raporu İndir
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <ExpenseTable rows={campaignExpenses} showCampaign />
@@ -429,12 +436,23 @@ export function AdminAdExpensesManager() {
               Kampanya dışı reklam giderleri · {specialExpenses.length} satır · {formatMoney(specialTotal)} TL
             </p>
           </div>
-          <Badge variant="secondary">Özel</Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary">Özel</Badge>
+            <Button size="sm" variant="secondary" onClick={() => downloadExcel("general")}>
+              <Download className="mr-1 h-4 w-4" /> Özel Rapor İndir
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <ExpenseTable rows={specialExpenses} showCampaign={false} />
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => downloadExcel()}>
+          <Download className="mr-1 h-4 w-4" /> Tüm Giderleri Birlikte İndir
+        </Button>
+      </div>
     </div>
   );
 }

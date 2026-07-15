@@ -23,12 +23,18 @@ export const GET = withAuth(
 
     const buffer = await generateAdExpensesExcelBuffer(filters);
     const date = new Date().toISOString().slice(0, 10);
-    const period = filters.period ?? "ozel";
+    const period = filters.period ?? "filtre";
+    const type =
+      filters.link === "campaign"
+        ? "kampanya"
+        : filters.link === "general"
+          ? "ozel"
+          : "tum";
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type":
           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="reklam-giderleri-${period}-${date}.xlsx"`,
+        "Content-Disposition": `attachment; filename="reklam-giderleri-${type}-${period}-${date}.xlsx"`,
       },
     });
   },
