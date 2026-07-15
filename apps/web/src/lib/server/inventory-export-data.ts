@@ -190,6 +190,8 @@ export function exportRowToApiItem(row: InventoryExportRow) {
     store: { id: row.storeId, name: row.storeName },
     en: row.en ? Number(row.en) : undefined,
     boy: row.boy ? Number(row.boy) : undefined,
+    adet: row.adet ? Number(row.adet) : undefined,
+    quantity: row.type === "CATALOG_REQUEST" && row.adet ? Number(row.adet) : undefined,
     konum: row.konum || undefined,
     gorselUrl: row.type !== "CATALOG_REQUEST" ? row.imageUrl : undefined,
     storeImageUrl: row.type === "CATALOG_REQUEST" ? row.imageUrl : undefined,
