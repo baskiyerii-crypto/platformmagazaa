@@ -79,7 +79,13 @@ export function AdminAdExpensesManager() {
 
   async function loadCats() {
     const res = await fetch("/api/v1/admin/ad-expense-categories?includeInactive=1");
-    setCategories(await res.json());
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      setError(data?.error ?? `Kategoriler yüklenemedi (${res.status})`);
+      setCategories([]);
+      return;
+    }
+    setCategories(Array.isArray(data) ? data : []);
   }
 
   async function loadData() {
@@ -88,9 +94,24 @@ export function AdminAdExpensesManager() {
       fetch(`/api/v1/ad-expenses?summary=1&${query}`),
       fetch("/api/v1/ad-expenses?campaigns=1"),
     ]);
-    setExpenses(await expRes.json());
-    setSummary(await sumRes.json());
-    setCampaigns(await campRes.json());
+    const [exp, sum, camps] = await Promise.all([
+      expRes.json().catch(() => null),
+      sumRes.json().catch(() => null),
+      campRes.json().catch(() => null),
+    ]);
+    if (!expRes.ok || !sumRes.ok || !campRes.ok) {
+      setError(
+        exp?.error || sum?.error || camps?.error || "Reklam giderleri yüklenemedi (şema güncellemesi gerekebilir)"
+      );
+      setExpenses([]);
+      setSummary(null);
+      setCampaigns([]);
+      return;
+    }
+    setError("");
+    setExpenses(Array.isArray(exp) ? exp : []);
+    setSummary(sum);
+    setCampaigns(Array.isArray(camps) ? camps : []);
   }
 
   useEffect(() => {
@@ -359,14 +380,29 @@ export function StoreAdExpensesManager() {
   const [error, setError] = useState("");
 
   async function load() {
-    const [cats, camps, list] = await Promise.all([
-      fetch("/api/v1/admin/ad-expense-categories").then((r) => r.json()),
-      fetch("/api/v1/ad-expenses?campaigns=1").then((r) => r.json()),
-      fetch("/api/v1/ad-expenses").then((r) => r.json()),
+    const [catsRes, campsRes, listRes] = await Promise.all([
+      fetch("/api/v1/admin/ad-expense-categories"),
+      fetch("/api/v1/ad-expenses?campaigns=1"),
+      fetch("/api/v1/ad-expenses"),
     ]);
-    setCategories(cats);
-    setCampaigns(camps);
-    setExpenses(list);
+    const [cats, camps, list] = await Promise.all([
+      catsRes.json().catch(() => null),
+      campsRes.json().catch(() => null),
+      listRes.json().catch(() => null),
+    ]);
+    if (!catsRes.ok || !campsRes.ok || !listRes.ok) {
+      setError(
+        cats?.error || camps?.error || list?.error || "Veriler yüklenemedi (şema güncellemesi gerekebilir)"
+      );
+      setCategories([]);
+      setCampaigns([]);
+      setExpenses([]);
+      return;
+    }
+    setError("");
+    setCategories(Array.isArray(cats) ? cats : []);
+    setCampaigns(Array.isArray(camps) ? camps : []);
+    setExpenses(Array.isArray(list) ? list : []);
   }
 
   useEffect(() => {

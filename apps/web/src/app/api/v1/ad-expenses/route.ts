@@ -22,6 +22,23 @@ function filtersFromSearch(searchParams: URLSearchParams, forceStoreId?: string 
   };
 }
 
+function dbError(e: unknown) {
+  const msg = e instanceof Error ? e.message : "Veritabanı hatası";
+  const code = typeof e === "object" && e && "code" in e ? String((e as { code: string }).code) : "";
+  if (
+    code === "P2021" ||
+    code === "P2022" ||
+    /does not exist|Unknown arg|AnnouncementKind|AdExpense|column .* does not exist/i.test(msg)
+  ) {
+    return jsonError(
+      "Veritabanı şeması güncel değil. Coolify’da yeniden deploy edin (entrypoint prisma db push) veya production DATABASE_URL ile `pnpm --filter @magaza/database push` çalıştırın.",
+      503
+    );
+  }
+  console.error("[ad-expenses]", e);
+  return jsonError(msg || "Sunucu hatası", 500);
+}
+
 async function assertCampaignAnnouncement(announcementId: string | null | undefined, storeId: string) {
   if (!announcementId) return null;
   const announcement = await prisma.announcement.findFirst({
@@ -42,84 +59,83 @@ async function assertCampaignAnnouncement(announcementId: string | null | undefi
 }
 
 export const GET = withAuth(async (request, auth) => {
-  const { searchParams } = new URL(request.url);
-  const staff = isStaffRole(auth.role);
-  if (!staff && !auth.storeId) {
-    return jsonError("Mağaza bilgisi eksik", 403);
-  }
+  try {
+    const { searchParams } = new URL(request.url);
+    const staff = isStaffRole(auth.role);
+    if (!staff && !auth.storeId) {
+      return jsonError("Mağaza bilgisi eksik", 403);
+    }
 
-  const filters = filtersFromSearch(searchParams, staff ? undefined : auth.storeId);
-  if (searchParams.get("summary") === "1") {
-    if (!staff) return jsonError("Özet sadece yönetici için", 403);
-    const summary = await summarizeAdExpenses(filters);
-    return NextResponse.json(summary);
-  }
+    const filters = filtersFromSearch(searchParams, staff ? undefined : auth.storeId);
+    if (searchParams.get("summary") === "1") {
+      if (!staff) return jsonError("Özet sadece yönetici için", 403);
+      const summary = await summarizeAdExpenses(filters);
+      return NextResponse.json(summary);
+    }
 
-  // Kampanya listesi (dropdown)
-  if (searchParams.get("campaigns") === "1") {
-    const storeId = staff ? searchParams.get("storeId") : auth.storeId;
-    const campaigns = await prisma.announcement.findMany({
-      where: {
-        active: true,
-        kind: "KAMPANYA",
-        ...(storeId
-          ? {
-              OR: [
-                { audience: "ALL_STORES" },
-                { audience: "SELECTED_STORES", storeIds: { has: storeId } },
-              ],
-            }
-          : {}),
-      },
-      select: { id: true, title: true, publishedAt: true },
-      orderBy: { publishedAt: "desc" },
-    });
-    return NextResponse.json(campaigns);
-  }
+    if (searchParams.get("campaigns") === "1") {
+      const storeId = staff ? searchParams.get("storeId") : auth.storeId;
+      const campaigns = await prisma.announcement.findMany({
+        where: {
+          active: true,
+          kind: "KAMPANYA",
+          ...(storeId
+            ? {
+                OR: [
+                  { audience: "ALL_STORES" },
+                  { audience: "SELECTED_STORES", storeIds: { has: storeId } },
+                ],
+              }
+            : {}),
+        },
+        select: { id: true, title: true, publishedAt: true },
+        orderBy: { publishedAt: "desc" },
+      });
+      return NextResponse.json(campaigns);
+    }
 
-  const items = await listAdExpenses(filters);
-  return NextResponse.json(items);
+    const items = await listAdExpenses(filters);
+    return NextResponse.json(items);
+  } catch (e) {
+    return dbError(e);
+  }
 });
 
 export const POST = withAuth(async (request, auth) => {
-  const staff = isStaffRole(auth.role);
-  const body = await request.json();
-  const parsed = createAdExpensesSchema.safeParse(body);
-  if (!parsed.success) {
-    return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
-  }
-
-  let storeId = auth.storeId ?? null;
-  if (staff && body.storeId) {
-    storeId = body.storeId;
-  }
-  if (!storeId) {
-    return jsonError("Mağaza gerekli", 400);
-  }
-
-  if (!staff && storeId !== auth.storeId) {
-    return jsonError("Başka mağaza adına gider giremezsiniz", 403);
-  }
-
-  const categoryIds = [...new Set(parsed.data.items.map((i) => i.categoryId))];
-  const cats = await prisma.adExpenseCategory.findMany({
-    where: { id: { in: categoryIds }, active: true },
-    select: { id: true },
-  });
-  if (cats.length !== categoryIds.length) {
-    return jsonError("Geçersiz veya pasif kategori", 400);
-  }
-
   try {
+    const staff = isStaffRole(auth.role);
+    const body = await request.json();
+    const parsed = createAdExpensesSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
+    }
+
+    let storeId = auth.storeId ?? null;
+    if (staff && body.storeId) {
+      storeId = body.storeId;
+    }
+    if (!storeId) {
+      return jsonError("Mağaza gerekli", 400);
+    }
+
+    if (!staff && storeId !== auth.storeId) {
+      return jsonError("Başka mağaza adına gider giremezsiniz", 403);
+    }
+
+    const categoryIds = [...new Set(parsed.data.items.map((i) => i.categoryId))];
+    const cats = await prisma.adExpenseCategory.findMany({
+      where: { id: { in: categoryIds }, active: true },
+      select: { id: true },
+    });
+    if (cats.length !== categoryIds.length) {
+      return jsonError("Geçersiz veya pasif kategori", 400);
+    }
+
     for (const line of parsed.data.items) {
       await assertCampaignAnnouncement(line.announcementId, storeId);
     }
-  } catch (e) {
-    return jsonError(e instanceof Error ? e.message : "Kampanya hatası", 400);
-  }
 
-  const created = await prisma.$transaction(
-    async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       const rows = [];
       for (const line of parsed.data.items) {
         const row = await tx.adExpense.create({
@@ -139,8 +155,13 @@ export const POST = withAuth(async (request, auth) => {
         rows.push(row);
       }
       return rows;
-    }
-  );
+    });
 
-  return NextResponse.json(created.map(serializeExpense), { status: 201 });
+    return NextResponse.json(created.map(serializeExpense), { status: 201 });
+  } catch (e) {
+    if (e instanceof Error && e.message.includes("Kampanya duyurusu")) {
+      return jsonError(e.message, 400);
+    }
+    return dbError(e);
+  }
 });

@@ -31,11 +31,15 @@ ENV HOSTNAME=0.0.0.0
 ENV UPLOAD_DIR=/app/uploads
 WORKDIR /app
 
-RUN mkdir -p /app/uploads
+RUN mkdir -p /app/uploads \
+  && npm install -g prisma@6.19.3
 
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
-RUN mkdir -p ./apps/web/public
+COPY --from=builder /app/packages/database/prisma ./prisma
+COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh \
+  && mkdir -p ./apps/web/public
 
 EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
+CMD ["/app/docker-entrypoint.sh"]
