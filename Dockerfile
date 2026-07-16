@@ -35,15 +35,23 @@ WORKDIR /app
 RUN mkdir -p /app/uploads /app/apps/web/public \
   && npm install -g prisma@6.19.3 --omit=dev
 
+# Seed deps in isolated folder — NEVER npm install into /app (breaks Next standalone)
+WORKDIR /seed
+COPY packages/database/prisma ./prisma
+COPY scripts/ensure-seed.cjs ./ensure-seed.cjs
+RUN npm init -y \
+  && npm install @prisma/client@6.19.3 bcryptjs@2.4.3 --omit=dev \
+  && prisma generate --schema=/seed/prisma/schema.prisma
+
+WORKDIR /app
+
 # Next standalone (küçük runtime)
 COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/packages/database/prisma ./prisma
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
-COPY scripts/ensure-seed.cjs /app/ensure-seed.cjs
 RUN chmod +x /app/docker-entrypoint.sh \
-  && npm install @prisma/client@6.19.3 bcryptjs@2.4.3 --omit=dev \
-  && prisma generate --schema=/app/prisma/schema.prisma
+  && mkdir -p /app/apps/web/public /app/uploads
 
 EXPOSE 3000
 CMD ["/app/docker-entrypoint.sh"]

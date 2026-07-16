@@ -1,19 +1,33 @@
 #!/bin/sh
 set -e
 
-# Sync schema + ensure default users on container start (Coolify DATABASE_URL)
+echo "[entrypoint] starting..."
+
+# Sync schema + ensure default users (non-fatal — app must still boot)
 if [ -n "$DATABASE_URL" ] && [ -f /app/prisma/schema.prisma ]; then
   echo "[entrypoint] prisma db push..."
-  if ! prisma db push --schema=/app/prisma/schema.prisma --skip-generate; then
-    echo "[entrypoint] WARNING: prisma db push failed — check DATABASE_URL and DB permissions"
-  else
+  if prisma db push --schema=/app/prisma/schema.prisma --skip-generate; then
     echo "[entrypoint] ensure-seed..."
-    if [ -f /app/ensure-seed.cjs ]; then
-      node /app/ensure-seed.cjs || echo "[entrypoint] WARNING: ensure-seed failed (app will still start)"
+    if [ -f /seed/ensure-seed.cjs ]; then
+      # Use isolated seed node_modules (do not touch standalone /app/node_modules)
+      NODE_PATH=/seed/node_modules node /seed/ensure-seed.cjs \
+        || echo "[entrypoint] WARNING: ensure-seed failed (app will still start)"
     else
-      echo "[entrypoint] WARNING: /app/ensure-seed.cjs not found"
+      echo "[entrypoint] WARNING: /seed/ensure-seed.cjs not found"
     fi
+  else
+    echo "[entrypoint] WARNING: prisma db push failed — check DATABASE_URL / Postgres"
   fi
+else
+  echo "[entrypoint] WARNING: DATABASE_URL or schema missing — skip push/seed"
 fi
 
+if [ ! -f /app/apps/web/server.js ]; then
+  echo "[entrypoint] FATAL: /app/apps/web/server.js not found"
+  ls -la /app || true
+  ls -la /app/apps || true
+  exit 1
+fi
+
+echo "[entrypoint] starting Next.js on port ${PORT:-3000}..."
 exec node apps/web/server.js
