@@ -1,6 +1,6 @@
 /**
- * Production bootstrap: creates missing users/definitions without overwriting
- * existing passwords. Safe to run on every container start.
+ * Production bootstrap: upserts seed users and always resets their passwords
+ * to the documented defaults so admin login works after DB wipe / redeploy.
  */
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
@@ -8,12 +8,22 @@ const bcrypt = require("bcryptjs");
 const prisma = new PrismaClient();
 
 async function ensureUser(username, password, role, storeId = null) {
-  const existing = await prisma.user.findUnique({ where: { username } });
-  if (existing) {
-    console.log(`[ensure-seed] user exists: ${username}`);
-    return existing;
-  }
   const passwordHash = await bcrypt.hash(password, 12);
+  const existing = await prisma.user.findUnique({ where: { username } });
+
+  if (existing) {
+    const user = await prisma.user.update({
+      where: { username },
+      data: {
+        passwordHash,
+        role,
+        ...(storeId != null ? { storeId } : {}),
+      },
+    });
+    console.log(`[ensure-seed] user password reset: ${username} (${role})`);
+    return user;
+  }
+
   const user = await prisma.user.create({
     data: { username, passwordHash, role, storeId },
   });

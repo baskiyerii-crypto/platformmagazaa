@@ -9,17 +9,11 @@ async function upsertUser(
   role: UserRole,
   storeId?: string | null
 ) {
-  const existing = await prisma.user.findUnique({ where: { username } });
-  if (existing) {
-    // Do not overwrite password on re-seed (production-safe)
-    return prisma.user.update({
-      where: { username },
-      data: { role, storeId: storeId ?? existing.storeId },
-    });
-  }
   const passwordHash = await bcrypt.hash(password, 12);
-  return prisma.user.create({
-    data: { username, passwordHash, role, storeId: storeId ?? null },
+  return prisma.user.upsert({
+    where: { username },
+    update: { passwordHash, role, storeId: storeId ?? null },
+    create: { username, passwordHash, role, storeId: storeId ?? null },
   });
 }
 
