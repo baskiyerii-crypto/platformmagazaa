@@ -40,7 +40,10 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/packages/database/prisma ./prisma
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
-RUN chmod +x /app/docker-entrypoint.sh
+COPY scripts/ensure-seed.cjs /app/ensure-seed.cjs
+RUN chmod +x /app/docker-entrypoint.sh \
+  && npm install @prisma/client@6.19.3 bcryptjs@2.4.3 --omit=dev \
+  && prisma generate --schema=/app/prisma/schema.prisma
 
 EXPOSE 3000
 CMD ["/app/docker-entrypoint.sh"]

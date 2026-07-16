@@ -21,4 +21,4 @@ cmds = [
 ]
 
 [start]
-cmd = "mkdir -p ${UPLOAD_DIR:-/app/uploads} && (cd packages/database && npx prisma db push --skip-generate || true) && pnpm --filter @magaza/web start"
+cmd = "mkdir -p ${UPLOAD_DIR:-/app/uploads} && (cd packages/database && npx prisma db push --skip-generate || true) && (node scripts/ensure-seed.cjs || true) && pnpm --filter @magaza/web start"

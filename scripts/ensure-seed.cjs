@@ -1,49 +1,54 @@
-import { PrismaClient, UserRole, AreaCategoryType, CatalogItemType } from "@prisma/client";
-import bcrypt from "bcryptjs";
+/**
+ * Production bootstrap: creates missing users/definitions without overwriting
+ * existing passwords. Safe to run on every container start.
+ */
+const { PrismaClient } = require("@prisma/client");
+const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
-async function upsertUser(
-  username: string,
-  password: string,
-  role: UserRole,
-  storeId?: string | null
-) {
+async function ensureUser(username, password, role, storeId = null) {
   const existing = await prisma.user.findUnique({ where: { username } });
   if (existing) {
-    // Do not overwrite password on re-seed (production-safe)
-    return prisma.user.update({
-      where: { username },
-      data: { role, storeId: storeId ?? existing.storeId },
-    });
+    console.log(`[ensure-seed] user exists: ${username}`);
+    return existing;
   }
   const passwordHash = await bcrypt.hash(password, 12);
-  return prisma.user.create({
-    data: { username, passwordHash, role, storeId: storeId ?? null },
+  const user = await prisma.user.create({
+    data: { username, passwordHash, role, storeId },
   });
+  console.log(`[ensure-seed] user created: ${username} (${role})`);
+  return user;
 }
 
 async function main() {
-  const admin = await upsertUser("admin", "admin123", UserRole.ADMIN);
-  await upsertUser("yusuf", "yusuf634152K", UserRole.ADMIN);
-  await upsertUser("mudur", "mudur634152K", UserRole.MANAGER);
+  if (!process.env.DATABASE_URL) {
+    console.warn("[ensure-seed] DATABASE_URL missing — skipped");
+    return;
+  }
+
+  console.log("[ensure-seed] starting...");
+
+  await ensureUser("admin", "admin123", "ADMIN");
+  await ensureUser("yusuf", "yusuf634152K", "ADMIN");
+  await ensureUser("mudur", "mudur634152K", "MANAGER");
 
   const avmCategory = await prisma.areaCategory.upsert({
-    where: { type: AreaCategoryType.AVM },
+    where: { type: "AVM" },
     update: {},
-    create: { type: AreaCategoryType.AVM, name: "AVM Alanları" },
+    create: { type: "AVM", name: "AVM Alanları" },
   });
 
   const acikHavaCategory = await prisma.areaCategory.upsert({
-    where: { type: AreaCategoryType.ACIK_HAVA },
+    where: { type: "ACIK_HAVA" },
     update: {},
-    create: { type: AreaCategoryType.ACIK_HAVA, name: "Açık Hava Alanları" },
+    create: { type: "ACIK_HAVA", name: "Açık Hava Alanları" },
   });
 
   const magazaIciCategory = await prisma.areaCategory.upsert({
-    where: { type: AreaCategoryType.MAGAZA_ICI },
+    where: { type: "MAGAZA_ICI" },
     update: {},
-    create: { type: AreaCategoryType.MAGAZA_ICI, name: "Mağaza İçi Reklamlar" },
+    create: { type: "MAGAZA_ICI", name: "Mağaza İçi Reklamlar" },
   });
 
   const subTypes = [
@@ -62,9 +67,7 @@ async function main() {
 
   for (const st of subTypes) {
     await prisma.areaSubType.upsert({
-      where: {
-        categoryId_code: { categoryId: st.categoryId, code: st.code },
-      },
+      where: { categoryId_code: { categoryId: st.categoryId, code: st.code } },
       update: { name: st.name, sortOrder: st.sortOrder },
       create: st,
     });
@@ -89,7 +92,7 @@ async function main() {
 
   const store = await prisma.store.upsert({
     where: { id: "seed-store-kadikoy" },
-    update: { storeNumber: "001" },
+    update: { storeNumber: "001", name: "Kadıköy Mağazası" },
     create: {
       id: "seed-store-kadikoy",
       name: "Kadıköy Mağazası",
@@ -99,27 +102,27 @@ async function main() {
     },
   });
 
-  await upsertUser("kadikoy", "magaza123", UserRole.STORE, store.id);
+  await ensureUser("kadikoy", "magaza123", "STORE", store.id);
 
   const catalogItems = [
     {
       name: "Demir Baş",
       code: "DEMIR_BAS",
-      type: CatalogItemType.FIXED,
+      type: "FIXED",
       description: "Sabit demir baş ürünü — mağaza talep açar",
       sortOrder: 1,
     },
     {
       name: "Yaka Kartı",
       code: "YAKA_KARTI",
-      type: CatalogItemType.VARIABLE,
+      type: "VARIABLE",
       description: "Değişken ürün — adet ile talep",
       sortOrder: 2,
     },
     {
       name: "Pleksi",
       code: "PLEKSI",
-      type: CatalogItemType.VARIABLE,
+      type: "VARIABLE",
       description: "Değişken pleksi ürün — adet ile talep",
       sortOrder: 3,
     },
@@ -139,14 +142,14 @@ async function main() {
     });
   }
 
-  console.log("Seed tamamlandı:");
-  console.log("  Ana Yönetici: yusuf / yusuf634152K");
-  console.log("  Müdür: mudur / mudur634152K");
-  console.log("  Demo: admin / admin123");
-  console.log("  Mağaza: kadikoy / magaza123");
-  console.log("  Admin ID:", admin.id);
+  console.log("[ensure-seed] done");
+  console.log("[ensure-seed] login: yusuf / yusuf634152K (ADMIN)");
 }
 
 main()
-  .catch(console.error)
+  .catch((e) => {
+    console.error("[ensure-seed] FAILED:", e?.message || e);
+    // Do not crash the app if seed fails — schema push may still allow login later
+    process.exitCode = 0;
+  })
   .finally(() => prisma.$disconnect());
