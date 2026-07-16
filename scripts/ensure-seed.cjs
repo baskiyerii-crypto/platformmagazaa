@@ -39,10 +39,25 @@ async function main() {
 
   console.log("[ensure-seed] starting...");
 
+  // Admin users FIRST — must succeed even if store schema is behind
   await ensureUser("admin", "admin123", "ADMIN");
   await ensureUser("yusuf", "yusuf634152K", "ADMIN");
   await ensureUser("mudur", "mudur634152K", "MANAGER");
+  console.log("[ensure-seed] admin users ready — login: yusuf / yusuf634152K");
 
+  try {
+    await seedDefinitionsAndStore();
+  } catch (e) {
+    console.error(
+      "[ensure-seed] definitions/store skipped (run prisma db push):",
+      e?.message || e
+    );
+  }
+
+  console.log("[ensure-seed] done");
+}
+
+async function seedDefinitionsAndStore() {
   const avmCategory = await prisma.areaCategory.upsert({
     where: { type: "AVM" },
     update: {},
@@ -151,9 +166,6 @@ async function main() {
       create: item,
     });
   }
-
-  console.log("[ensure-seed] done");
-  console.log("[ensure-seed] login: yusuf / yusuf634152K (ADMIN)");
 }
 
 main()
