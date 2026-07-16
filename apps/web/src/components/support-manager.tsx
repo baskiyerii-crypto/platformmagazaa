@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Download } from "lucide-react";
+import { Download, Trash2 } from "lucide-react";
 import { fetchSlimStores } from "@/lib/stores-cache";
+import { useIsStrictAdmin } from "@/lib/role-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -129,6 +130,7 @@ export function StoreSupportManager() {
 }
 
 export function AdminSupportManager() {
+  const isAdmin = useIsStrictAdmin();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [storeId, setStoreId] = useState("");
   const [tab, setTab] = useState<TabKey>("OPEN");
@@ -136,6 +138,8 @@ export function AdminSupportManager() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingTicket, setPendingTicket] = useState<Ticket | null>(null);
@@ -158,6 +162,7 @@ export function AdminSupportManager() {
       }
       const data: PaginatedResponse<Ticket> = await res.json();
       setTickets(data.items);
+      setSelected(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Liste alınamadı");
     } finally {
@@ -186,6 +191,69 @@ export function AdminSupportManager() {
     () => tickets.filter((t) => ticketMatchesTab(t.status, tab)),
     [tickets, tab]
   );
+
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAllVisible() {
+    const allSelected = visible.length > 0 && visible.every((t) => selected.has(t.id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        for (const t of visible) next.delete(t.id);
+      } else {
+        for (const t of visible) next.add(t.id);
+      }
+      return next;
+    });
+  }
+
+  async function deleteOne(id: string) {
+    if (!isAdmin || !confirm("Bu destek talebi silinsin mi?")) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/v1/admin/support-tickets/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Silinemedi");
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Silinemedi");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function deleteSelected() {
+    if (!isAdmin || selected.size === 0) return;
+    if (!confirm(`${selected.size} talep silinsin mi?`)) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/v1/admin/support-tickets/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: [...selected] }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(body?.error ?? "Toplu silme başarısız");
+      }
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Toplu silme başarısız");
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function openStatusDialog(ticket: Ticket, status: SupportTicketStatus) {
     setPendingTicket(ticket);
@@ -287,9 +355,15 @@ export function AdminSupportManager() {
           <Download className="mr-2 h-4 w-4" />
           Tümünü Excel
         </Button>
+        {isAdmin && selected.size > 0 ? (
+          <Button variant="destructive" onClick={deleteSelected} disabled={deleting}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            {deleting ? "Siliniyor..." : `Seçilenleri Sil (${selected.size})`}
+          </Button>
+        ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {TABS.map((t) => (
           <Button
             key={t.key}
@@ -300,6 +374,11 @@ export function AdminSupportManager() {
             {t.label} ({counts[t.key]})
           </Button>
         ))}
+        {isAdmin && visible.length > 0 ? (
+          <Button size="sm" variant="ghost" onClick={toggleSelectAllVisible}>
+            {visible.every((t) => selected.has(t.id)) ? "Seçimi kaldır" : "Görünenleri seç"}
+          </Button>
+        ) : null}
       </div>
 
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -317,13 +396,23 @@ export function AdminSupportManager() {
         <Card key={t.id}>
           <CardContent className="space-y-3 p-4">
             <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <div className="font-semibold">
-                  {t.store?.name} — {t.subject}
+              <div className="flex items-start gap-3">
+                {isAdmin ? (
+                  <input
+                    type="checkbox"
+                    className="mt-1 h-4 w-4 rounded border-input"
+                    checked={selected.has(t.id)}
+                    onChange={() => toggleSelect(t.id)}
+                  />
+                ) : null}
+                <div>
+                  <div className="font-semibold">
+                    {t.store?.name} — {t.subject}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {new Date(t.createdAt).toLocaleString("tr-TR")}
+                  </p>
                 </div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {new Date(t.createdAt).toLocaleString("tr-TR")}
-                </p>
               </div>
               <Badge>{SUPPORT_TICKET_STATUS_LABELS[t.status]}</Badge>
             </div>
@@ -337,6 +426,17 @@ export function AdminSupportManager() {
                   {SUPPORT_TICKET_STATUS_LABELS[s]}
                 </Button>
               ))}
+              {isAdmin ? (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={deleting}
+                  onClick={() => deleteOne(t.id)}
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" />
+                  Sil
+                </Button>
+              ) : null}
             </div>
           </CardContent>
         </Card>

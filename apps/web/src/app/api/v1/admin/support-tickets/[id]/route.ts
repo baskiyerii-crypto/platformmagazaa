@@ -37,3 +37,14 @@ export const PATCH = withAuthParams<{ id: string }>(
   },
   { adminOnly: true }
 );
+
+export const DELETE = withAuthParams<{ id: string }>(
+  async (_request, _auth, context) => {
+    const { id } = await context.params;
+    const existing = await prisma.supportTicket.findUnique({ where: { id } });
+    if (!existing) return jsonError("Talep bulunamadı", 404);
+    await prisma.supportTicket.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  },
+  { strictAdminOnly: true }
+);

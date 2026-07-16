@@ -14,7 +14,7 @@ export async function middleware(request: NextRequest) {
   });
 
   const { pathname } = request.nextUrl;
-  const isAuthPage = pathname.startsWith("/login");
+  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/register");
   const isProtected = pathname.startsWith("/admin") || pathname.startsWith("/store");
 
   if (!token && isProtected) {
@@ -32,5 +32,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/store/:path*", "/login"],
+  matcher: ["/admin/:path*", "/store/:path*", "/login", "/register"],
 };

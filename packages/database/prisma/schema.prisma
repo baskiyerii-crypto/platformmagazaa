@@ -91,6 +91,12 @@ enum SupportTicketStatus {
   CLOSED
 }
 
+enum SignupRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id           String   @id @default(cuid())
   username     String   @unique
@@ -108,17 +114,19 @@ model User {
   announcements        Announcement[] @relation("AnnouncementAuthor")
   mediaAssets          MediaAsset[]
   adExpenses           AdExpense[]    @relation("AdExpenseAuthor")
+  reviewedSignups      StoreSignupRequest[] @relation("SignupReviewer")
   @@index([storeId])
   @@index([role])
 }
 
 model Store {
-  id        String   @id @default(cuid())
-  name      String
-  address   String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  name        String
+  storeNumber String   @unique @default(cuid())
+  address     String?
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   users           User[]
   avmEntries      AvmEntry[]
@@ -130,6 +138,25 @@ model Store {
   announcementReceipts AnnouncementReceipt[]
   mediaAssets     MediaAsset[]
   adExpenses      AdExpense[]
+}
+
+model StoreSignupRequest {
+  id           String              @id @default(cuid())
+  storeName    String
+  storeNumber  String
+  username     String
+  passwordHash String
+  status       SignupRequestStatus @default(PENDING)
+  adminNote    String?
+  reviewedById String?
+  reviewedBy   User?               @relation("SignupReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status, createdAt])
+  @@index([storeNumber])
+  @@index([username])
 }
 
 model AreaCategory {

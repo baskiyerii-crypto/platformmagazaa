@@ -23,8 +23,10 @@ async function downloadBlob(url: string, fallbackName: string) {
     throw new Error(message);
   }
 
-  if (!contentType.includes("spreadsheet") && !contentType.includes("octet-stream")) {
-    throw new Error("Sunucu Excel dosyası döndürmedi");
+  // Some proxies strip/alter Content-Type; accept binary if body looks like a file.
+  if (contentType.includes("application/json")) {
+    const body = (await res.clone().json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? "Sunucu Excel dosyası yerine hata döndürdü");
   }
 
   const blob = await res.blob();
@@ -48,25 +50,43 @@ async function downloadBlob(url: string, fallbackName: string) {
   return blob.size;
 }
 
+function openFallback(url: string) {
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 export function ExportPanel() {
   const [stores, setStores] = useState<Store[]>([]);
+  const [storesError, setStoresError] = useState<string | null>(null);
   const [storeId, setStoreId] = useState("");
   const [busy, setBusy] = useState<"detail" | "inventory" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSize, setLastSize] = useState<number | null>(null);
 
   useEffect(() => {
-    fetchSlimStores().then(setStores);
+    fetchSlimStores()
+      .then((list) => {
+        if (!Array.isArray(list)) {
+          setStores([]);
+          setStoresError("Mağaza listesi alınamadı");
+          return;
+        }
+        setStores(list);
+        setStoresError(null);
+      })
+      .catch(() => {
+        setStores([]);
+        setStoresError("Mağaza listesi alınamadı");
+      });
   }, []);
 
   async function downloadDetail() {
     setBusy("detail");
     setError(null);
     setLastSize(null);
+    const url = storeId
+      ? `/api/v1/admin/export/excel?storeId=${encodeURIComponent(storeId)}`
+      : "/api/v1/admin/export/excel";
     try {
-      const url = storeId
-        ? `/api/v1/admin/export/excel?storeId=${encodeURIComponent(storeId)}`
-        : "/api/v1/admin/export/excel";
       const size = await downloadBlob(
         url,
         storeId
@@ -75,7 +95,12 @@ export function ExportPanel() {
       );
       setLastSize(size);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Excel indirilemedi");
+      openFallback(url);
+      setError(
+        e instanceof Error
+          ? `${e.message} — yeni sekmede indirme denendi`
+          : "Excel indirilemedi — yeni sekmede indirme denendi"
+      );
     } finally {
       setBusy(null);
     }
@@ -85,16 +110,22 @@ export function ExportPanel() {
     setBusy("inventory");
     setError(null);
     setLastSize(null);
+    const p = new URLSearchParams({ format: "excel" });
+    if (storeId) p.set("storeId", storeId);
+    const url = `/api/v1/admin/export/inventory?${p.toString()}`;
     try {
-      const p = new URLSearchParams({ format: "excel" });
-      if (storeId) p.set("storeId", storeId);
       const size = await downloadBlob(
-        `/api/v1/admin/export/inventory?${p.toString()}`,
+        url,
         `envanter-${new Date().toISOString().slice(0, 10)}.xlsx`
       );
       setLastSize(size);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Excel indirilemedi");
+      openFallback(url);
+      setError(
+        e instanceof Error
+          ? `${e.message} — yeni sekmede indirme denendi`
+          : "Excel indirilemedi — yeni sekmede indirme denendi"
+      );
     } finally {
       setBusy(null);
     }
@@ -111,7 +142,7 @@ export function ExportPanel() {
         <CardHeader>
           <CardTitle>Mağaza seçimi</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-2">
           <select
             className="flex h-10 w-full rounded-xl border px-3 text-sm"
             value={storeId}
@@ -124,6 +155,7 @@ export function ExportPanel() {
               </option>
             ))}
           </select>
+          {storesError ? <p className="text-sm text-destructive">{storesError}</p> : null}
         </CardContent>
       </Card>
 

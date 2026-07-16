@@ -8,6 +8,7 @@ export const loginSchema = z.object({
 
 const createStoreBaseSchema = z.object({
   name: z.string().min(1, "Mağaza adı gerekli"),
+  storeNumber: z.string().trim().min(1, "Mağaza numarası gerekli"),
   address: z.string().optional(),
   active: z.boolean().default(true),
 });
@@ -32,6 +33,22 @@ export const updateStoreSchema = createStoreBaseSchema.partial();
 export const createStoreUserSchema = z.object({
   username: z.string().min(3, "Kullanıcı adı en az 3 karakter"),
   password: z.string().min(6, "Şifre en az 6 karakter"),
+});
+
+export const registerStoreSchema = z.object({
+  storeName: z.string().trim().min(1, "Mağaza adı gerekli"),
+  storeNumber: z.string().trim().min(1, "Mağaza numarası gerekli"),
+  username: z.string().trim().min(3, "Kullanıcı adı en az 3 karakter"),
+  password: z.string().min(6, "Şifre en az 6 karakter"),
+});
+
+export const reviewSignupRequestSchema = z.object({
+  action: z.enum(["APPROVE", "REJECT"]),
+  adminNote: z.string().optional().nullable(),
+});
+
+export const bulkDeleteIdsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, "En az bir kayıt seçilmeli"),
 });
 
 export const createAreaSubTypeSchema = z.object({

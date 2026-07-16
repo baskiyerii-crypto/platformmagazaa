@@ -83,10 +83,11 @@ async function main() {
 
   const store = await prisma.store.upsert({
     where: { id: "seed-store-kadikoy" },
-    update: {},
+    update: { storeNumber: "001" },
     create: {
       id: "seed-store-kadikoy",
       name: "Kadıköy Mağazası",
+      storeNumber: "001",
       address: "Kadıköy, İstanbul",
       active: true,
     },

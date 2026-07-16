@@ -20,6 +20,7 @@ type StoreUser = { id: string; username: string; createdAt?: string };
 type StoreDetailData = {
   id: string;
   name: string;
+  storeNumber: string;
   address?: string | null;
   active: boolean;
   users: StoreUser[];
@@ -50,6 +51,7 @@ export function StoreDetail({ storeId }: { storeId: string }) {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
+  const [editStoreNumber, setEditStoreNumber] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editActive, setEditActive] = useState(true);
 
@@ -102,10 +104,16 @@ export function StoreDetail({ storeId }: { storeId: string }) {
     const res = await fetch(`/api/v1/admin/stores/${storeId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editName, address: editAddress || null, active: editActive }),
+      body: JSON.stringify({
+        name: editName,
+        storeNumber: editStoreNumber,
+        address: editAddress || null,
+        active: editActive,
+      }),
     });
     if (!res.ok) {
-      alert("Mağaza güncellenemedi");
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "Mağaza güncellenemedi");
       setLoading(false);
       return;
     }
@@ -134,6 +142,7 @@ export function StoreDetail({ storeId }: { storeId: string }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold">{store.name}</h1>
+          <p className="text-muted-foreground">Mağaza No: {store.storeNumber}</p>
           <p className="text-muted-foreground">{store.address}</p>
           <p className="text-sm text-muted-foreground">{store.active ? "Aktif" : "Pasif"}</p>
         </div>
@@ -145,6 +154,7 @@ export function StoreDetail({ storeId }: { storeId: string }) {
               onClick={() => {
                 setEditing(!editing);
                 setEditName(store.name);
+                setEditStoreNumber(store.storeNumber);
                 setEditAddress(store.address ?? "");
                 setEditActive(store.active);
               }}
@@ -170,6 +180,14 @@ export function StoreDetail({ storeId }: { storeId: string }) {
                 <Input value={editName} onChange={(e) => setEditName(e.target.value)} required />
               </div>
               <div className="space-y-2">
+                <Label>Mağaza No</Label>
+                <Input
+                  value={editStoreNumber}
+                  onChange={(e) => setEditStoreNumber(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
                 <Label>Adres</Label>
                 <Input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} />
               </div>

@@ -14,6 +14,7 @@ export const GET = withAuthParams<{ id: string }>(
       select: {
         id: true,
         name: true,
+        storeNumber: true,
         address: true,
         active: true,
         users: { select: { id: true, username: true, role: true, createdAt: true } },
@@ -65,6 +66,13 @@ export const PATCH = withAuthParams<{ id: string }>(
     const parsed = updateStoreSchema.safeParse(body);
     if (!parsed.success) {
       return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
+    }
+
+    if (parsed.data.storeNumber) {
+      const clash = await prisma.store.findFirst({
+        where: { storeNumber: parsed.data.storeNumber, NOT: { id } },
+      });
+      if (clash) return jsonError("Mağaza numarası kullanımda", 400);
     }
 
     const store = await prisma.store.update({

@@ -10,7 +10,7 @@ export const GET = withAuth(
 
     if (slim) {
       const stores = await prisma.store.findMany({
-        select: { id: true, name: true },
+        select: { id: true, name: true, storeNumber: true },
         orderBy: { name: "asc" },
       });
       return NextResponse.json(stores);
@@ -42,7 +42,10 @@ export const POST = withAuth(
       return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
     }
 
-    const { name, address, active, username, password } = parsed.data;
+    const { name, storeNumber, address, active, username, password } = parsed.data;
+
+    const existingNumber = await prisma.store.findUnique({ where: { storeNumber } });
+    if (existingNumber) return jsonError("Mağaza numarası kullanımda", 400);
 
     if (username && password) {
       const existing = await prisma.user.findUnique({ where: { username } });
@@ -51,7 +54,7 @@ export const POST = withAuth(
       const passwordHash = await bcrypt.hash(password, 12);
       const store = await prisma.$transaction(async (tx) => {
         const created = await tx.store.create({
-          data: { name, address, active },
+          data: { name, storeNumber, address, active },
         });
         await tx.user.create({
           data: {
@@ -67,7 +70,9 @@ export const POST = withAuth(
       return NextResponse.json(store, { status: 201 });
     }
 
-    const store = await prisma.store.create({ data: { name, address, active } });
+    const store = await prisma.store.create({
+      data: { name, storeNumber, address, active },
+    });
     return NextResponse.json(store, { status: 201 });
   },
   { strictAdminOnly: true }

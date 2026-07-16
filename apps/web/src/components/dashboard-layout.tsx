@@ -23,6 +23,7 @@ import {
   X,
   Smartphone,
   CircleDollarSign,
+  UserPlus,
 } from "lucide-react";
 import { isStaffRole } from "@magaza/shared";
 import type { UserRole } from "@magaza/shared";
@@ -42,6 +43,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/inventory", label: "Envanter", icon: Warehouse },
   { href: "/admin/catalog", label: "Ürün Kataloğu", icon: Package },
   { href: "/admin/stores", label: "Mağazalar", icon: Store },
+  { href: "/admin/registrations", label: "Kayıt Talepleri", icon: UserPlus },
   { href: "/admin/announcements", label: "Duyurular", icon: Megaphone },
   { href: "/admin/ad-expenses", label: "Reklam Giderleri", icon: CircleDollarSign },
   { href: "/admin/media", label: "Görsel Kütüphanesi", icon: Images },

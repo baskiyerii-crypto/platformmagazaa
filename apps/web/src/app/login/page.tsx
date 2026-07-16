@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -77,6 +78,9 @@ export default function LoginPage() {
             )}
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+            </Button>
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/register">Kayıt Ol</Link>
             </Button>
           </form>
         </CardContent>

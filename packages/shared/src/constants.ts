@@ -143,6 +143,15 @@ export const SUPPORT_TICKET_STATUS_LABELS: Record<SupportTicketStatus, string> =
   CLOSED: "Kapatıldı",
 };
 
+export const SIGNUP_REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
+export type SignupRequestStatus = (typeof SIGNUP_REQUEST_STATUSES)[number];
+
+export const SIGNUP_REQUEST_STATUS_LABELS: Record<SignupRequestStatus, string> = {
+  PENDING: "Bekliyor",
+  APPROVED: "Onaylandı",
+  REJECTED: "Reddedildi",
+};
+
 export const NOTIFICATION_TYPES = ["CHANGE_REQUEST", "CATALOG_REQUEST", "SUPPORT", "ANNOUNCEMENT"] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

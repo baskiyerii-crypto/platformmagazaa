@@ -11,6 +11,7 @@ type StoreUser = { id: string; username: string };
 type Store = {
   id: string;
   name: string;
+  storeNumber: string;
   address?: string | null;
   active: boolean;
   users: StoreUser[];
@@ -22,6 +23,7 @@ export default function AdminStores() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [canManage, setCanManage] = useState(false);
   const [name, setName] = useState("");
+  const [storeNumber, setStoreNumber] = useState("");
   const [address, setAddress] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -30,6 +32,7 @@ export default function AdminStores() {
   const [extraPassword, setExtraPassword] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editStoreNumber, setEditStoreNumber] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editActive, setEditActive] = useState(true);
 
@@ -52,8 +55,16 @@ export default function AdminStores() {
   async function createStore() {
     if (!isAdmin) return;
     try {
-      await api.post("/api/v1/admin/stores", { name, address, active: true, username, password });
+      await api.post("/api/v1/admin/stores", {
+        name,
+        storeNumber,
+        address,
+        active: true,
+        username,
+        password,
+      });
       setName("");
+      setStoreNumber("");
       setAddress("");
       setUsername("");
       setPassword("");
@@ -79,6 +90,7 @@ export default function AdminStores() {
   function startEdit(store: Store) {
     setEditingId(store.id);
     setEditName(store.name);
+    setEditStoreNumber(store.storeNumber);
     setEditAddress(store.address ?? "");
     setEditActive(store.active);
     setAddingFor(null);
@@ -89,6 +101,7 @@ export default function AdminStores() {
     try {
       await api.patch(`/api/v1/admin/stores/${storeId}`, {
         name: editName,
+        storeNumber: editStoreNumber,
         address: editAddress || null,
         active: editActive,
       });
@@ -129,6 +142,7 @@ export default function AdminStores() {
         <Card>
           <Text style={styles.cardTitle}>Yeni Mağaza + Kullanıcı</Text>
           <InputField label="Mağaza Adı" value={name} onChangeText={setName} />
+          <InputField label="Mağaza No" value={storeNumber} onChangeText={setStoreNumber} />
           <InputField label="Adres" value={address} onChangeText={setAddress} />
           <InputField label="Kullanıcı Adı" value={username} onChangeText={setUsername} />
           <InputField label="Şifre" value={password} onChangeText={setPassword} secureTextEntry />
@@ -142,6 +156,7 @@ export default function AdminStores() {
             <>
               <Text style={styles.cardTitle}>Mağazayı Düzenle</Text>
               <InputField label="Mağaza Adı" value={editName} onChangeText={setEditName} />
+              <InputField label="Mağaza No" value={editStoreNumber} onChangeText={setEditStoreNumber} />
               <InputField label="Adres" value={editAddress} onChangeText={setEditAddress} />
               <View style={localStyles.switchRow}>
                 <Text style={localStyles.switchLabel}>Aktif mağaza</Text>
@@ -155,7 +170,9 @@ export default function AdminStores() {
           ) : (
             <>
               <Text style={styles.cardTitle}>{store.name}</Text>
-              <Text style={styles.cardSubtitle}>{store.address || "Adres yok"}</Text>
+              <Text style={styles.cardSubtitle}>
+                No: {store.storeNumber} · {store.address || "Adres yok"}
+              </Text>
               <Text style={localStyles.status}>{store.active ? "Aktif" : "Pasif"}</Text>
               <Text style={styles.cardBody}>
                 AVM: {store._count.avmEntries} · Açık Hava: {store._count.outdoorEntries} · Talep:{" "}
