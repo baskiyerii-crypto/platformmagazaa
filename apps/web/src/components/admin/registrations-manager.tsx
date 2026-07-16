@@ -133,12 +133,13 @@ export function RegistrationsManager() {
                   <h3 className="font-semibold">{item.storeName}</h3>
                   <Badge variant="outline">No: {item.storeNumber}</Badge>
                   <Badge
-                    variant={
+                    variant="outline"
+                    className={
                       item.status === "PENDING"
-                        ? "secondary"
+                        ? "border-0 bg-yellow-100 text-yellow-800"
                         : item.status === "APPROVED"
-                          ? "default"
-                          : "destructive"
+                          ? "border-0 bg-green-100 text-green-800"
+                          : "border-0 bg-red-100 text-red-800"
                     }
                   >
                     {SIGNUP_REQUEST_STATUS_LABELS[item.status]}
