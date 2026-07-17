@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DeveloperFooter } from "@/components/developer-footer";
+import { BrandLogo } from "@/components/brand-logo";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -43,9 +44,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 p-4">
       <Card className="w-full max-w-md border-0 shadow-2xl">
         <CardHeader className="space-y-2 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
-            M
-          </div>
+          <BrandLogo className="mx-auto h-14 w-14" />
           <CardTitle className="text-2xl">Mağaza Platform</CardTitle>
           <CardDescription>
             Envanter ve görsel yönetim sistemine giriş yapın

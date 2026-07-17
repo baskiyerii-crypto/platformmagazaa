@@ -30,6 +30,7 @@ import { isStaffRole, isAdminRole } from "@magaza/shared";
 import type { UserRole } from "@magaza/shared";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/brand-logo";
 import { DeveloperFooter } from "@/components/developer-footer";
 import { NotificationBell } from "@/components/notification-bell";
 
@@ -141,11 +142,20 @@ export function DashboardLayout({
           style={{ background: "hsl(var(--sidebar))", color: "hsl(var(--sidebar-foreground))" }}
         >
           <div className="border-b border-white/10 px-5 py-5">
-            <div className="text-[11px] font-semibold uppercase tracking-widest text-[hsl(var(--sidebar-muted))]">
-              Mağaza Platform
+            <div className="flex items-center gap-3">
+              <BrandLogo
+                className="h-10 w-10 shrink-0"
+                fallbackClassName="bg-white/10 text-white text-lg font-bold"
+                size={40}
+              />
+              <div className="min-w-0">
+                <div className="text-[11px] font-semibold uppercase tracking-widest text-[hsl(var(--sidebar-muted))]">
+                  Mağaza Platform
+                </div>
+                <h1 className="mt-0.5 truncate text-lg font-semibold">{panelTitle}</h1>
+              </div>
             </div>
-            <h1 className="mt-1.5 text-lg font-semibold">{panelTitle}</h1>
-            <p className="mt-0.5 truncate text-sm text-[hsl(var(--sidebar-muted))]">
+            <p className="mt-2 truncate text-sm text-[hsl(var(--sidebar-muted))]">
               {displayName}
             </p>
           </div>

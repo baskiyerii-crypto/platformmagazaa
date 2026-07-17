@@ -19,7 +19,7 @@ export const metadata: Metadata = {
       { url: "/api/v1/branding/icon/192", sizes: "192x192", type: "image/png" },
       { url: "/api/v1/branding/icon/512", sizes: "512x512", type: "image/png" },
     ],
-    apple: [{ url: "/api/v1/branding/apple-touch-icon", sizes: "180x180", type: "image/png" }],
+    apple: [{ url: "/api/v1/branding/icon/apple-touch-icon", sizes: "180x180", type: "image/png" }],
   },
 };
 

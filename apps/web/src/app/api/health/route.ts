@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getBrandingLogoStatus } from "@/lib/branding";
 import { getUploadDirStatus } from "@/lib/upload";
 
 /**
@@ -14,6 +15,7 @@ export async function GET() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? null;
   const uploadDirEnv = process.env.UPLOAD_DIR ?? null;
   const uploadStatus = await getUploadDirStatus();
+  const branding = await getBrandingLogoStatus();
 
   const ready = nextAuthSecret && databaseUrl && Boolean(nextAuthUrl);
   const uploadsOk = uploadStatus.writable;
@@ -34,6 +36,11 @@ export async function GET() {
       uploads: {
         ...uploadStatus,
         route: "/api/v1/uploads/[filename]",
+      },
+      branding: {
+        logoUrl: branding.logoUrl,
+        fileExists: branding.fileExists,
+        updatedAt: branding.updatedAt,
       },
       hint: !ready
         ? "Coolify → Environment Variables: set NEXTAUTH_SECRET, NEXTAUTH_URL, DATABASE_URL (Runtime+Build), then Redeploy"

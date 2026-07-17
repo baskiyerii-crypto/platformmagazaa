@@ -29,5 +29,9 @@ if [ ! -f /app/apps/web/server.js ]; then
   exit 1
 fi
 
+UPLOAD_DIR="${UPLOAD_DIR:-/app/uploads}"
+mkdir -p "$UPLOAD_DIR"
+echo "[entrypoint] upload dir: $UPLOAD_DIR"
+
 echo "[entrypoint] starting Next.js on port ${PORT:-3000}..."
 exec node apps/web/server.js

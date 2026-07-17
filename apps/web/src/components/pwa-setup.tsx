@@ -4,102 +4,44 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Bell, Download, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  canUseWebPush,
+  isIosDevice,
+  isStandaloneMode,
+  syncWebPushSubscription,
+  type WebPushState,
+} from "@/lib/web-push-client";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 };
 
-function isIosDevice() {
-  if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent);
-}
-
-function isStandaloneMode() {
-  if (typeof window === "undefined") return false;
-  return (
-    window.matchMedia("(display-mode: standalone)").matches ||
-    (navigator as Navigator & { standalone?: boolean }).standalone === true
-  );
-}
-
-function urlBase64ToUint8Array(base64String: string) {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
-  const raw = atob(base64);
-  const output = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
-  return output;
-}
-
 export function PwaSetup() {
   const { status } = useSession();
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissedInstall, setDismissedInstall] = useState(false);
   const [dismissedIos, setDismissedIos] = useState(false);
-  const [pushState, setPushState] = useState<"idle" | "loading" | "enabled" | "denied" | "unsupported">("idle");
+  const [pushState, setPushState] = useState<WebPushState>("idle");
   const [pushMessage, setPushMessage] = useState("");
 
   const ios = useMemo(() => isIosDevice(), []);
   const standalone = useMemo(() => isStandaloneMode(), []);
+  const desktop = useMemo(() => !ios, [ios]);
 
   const syncPushSubscription = useCallback(async (requestPermission = false) => {
     if (status !== "authenticated") return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-      setPushState("unsupported");
-      return;
-    }
-
-    if (ios && !standalone) return;
-
-    let permission = Notification.permission;
-    if (permission === "default" && requestPermission) {
-      permission = await Notification.requestPermission();
-    }
-    if (permission !== "granted") {
-      if (requestPermission) {
-        setPushState("denied");
-        setPushMessage("Bildirim izni verilmedi. Telefon ayarlarından izin verebilirsiniz.");
-      }
-      return;
-    }
-
-    const keyRes = await fetch("/api/v1/web-push/public-key");
-    const keyJson = await keyRes.json();
-    if (!keyRes.ok || !keyJson.publicKey) return;
-
-    const registration = await navigator.serviceWorker.ready;
-    let subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(keyJson.publicKey),
-      });
-    }
-
-    const json = subscription.toJSON();
-    await fetch("/api/v1/web-push/subscriptions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        endpoint: json.endpoint,
-        keys: json.keys,
-        expirationTime: json.expirationTime ?? null,
-      }),
-    });
-    setPushState("enabled");
-  }, [ios, standalone, status]);
+    const result = await syncWebPushSubscription(requestPermission);
+    setPushState(result.state);
+    if (result.message) setPushMessage(result.message);
+    return result;
+  }, [status]);
 
   const enablePush = useCallback(async () => {
     if (status !== "authenticated") return;
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    if (!canUseWebPush()) {
       setPushState("unsupported");
       setPushMessage("Bu cihaz web bildirimlerini desteklemiyor.");
-      return;
-    }
-
-    if (ios && !standalone) {
-      setPushMessage("iPhone'da önce Safari'den Ana Ekrana Ekle yapın, sonra uygulamayı oradan açıp bildirimleri etkinleştirin.");
       return;
     }
 
@@ -107,15 +49,15 @@ export function PwaSetup() {
     setPushMessage("");
 
     try {
-      await syncPushSubscription(true);
-      if (Notification.permission === "granted") {
-        setPushMessage("Bildirimler açıldı. Yeni bildirimler cihazınızın varsayılan sesiyle gelir.");
+      const result = await syncPushSubscription(true);
+      if (!result?.ok && result?.message) {
+        setPushMessage(result.message);
       }
     } catch (error) {
       setPushState("idle");
       setPushMessage(error instanceof Error ? error.message : "Bildirimler açılamadı");
     }
-  }, [ios, standalone, status, syncPushSubscription]);
+  }, [status, syncPushSubscription]);
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
@@ -133,7 +75,7 @@ export function PwaSetup() {
 
   useEffect(() => {
     if (status !== "authenticated") return;
-    if (!("Notification" in window)) {
+    if (!canUseWebPush()) {
       setPushState("unsupported");
       return;
     }
@@ -222,7 +164,9 @@ export function PwaSetup() {
         <div className="rounded-2xl border bg-card p-4 shadow-lg">
           <div className="mb-2 font-semibold">Bildirimleri aç</div>
           <p className="mb-3 text-sm text-muted-foreground">
-            Mobil uygulamadaki bildirimler web/PWA sürümünde de gelsin.
+            {desktop
+              ? "PC Chrome veya Edge'de bildirimleri açın; yeni duyuru ve talepler masaüstü sistem bildirimi olarak gelir."
+              : "Mobil uygulamadaki bildirimler web/PWA sürümünde de gelsin."}
           </p>
           <Button className="w-full" onClick={enablePush} disabled={pushState === "loading"}>
             <Bell className="mr-2 h-4 w-4" />

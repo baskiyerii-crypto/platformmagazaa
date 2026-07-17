@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { dispatchBrandingUpdated } from "@/lib/branding-events";
 
 type BrandingResponse = {
   logoUrl: string | null;
   updatedAt: string | null;
+  fileExists?: boolean;
 };
 
 export function BrandingManager() {
@@ -59,9 +61,13 @@ export function BrandingManager() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "Yüklenemedi");
-      setSuccess("Logo güncellendi. Ana ekran ve bildirim ikonları birkaç dakika içinde yenilenir.");
+      setSuccess("Logo güncellendi. Sekme ikonu ve önizleme anında yenilenir.");
       setFile(null);
       await load();
+      dispatchBrandingUpdated({
+        logoUrl: json.logoUrl ?? null,
+        updatedAt: json.updatedAt ?? new Date().toISOString(),
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Yüklenemedi");
     } finally {
@@ -109,6 +115,12 @@ export function BrandingManager() {
                 <div>PWA başlık görseli</div>
               </div>
             </div>
+            {data?.logoUrl && data.fileExists === false && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Logo kaydı var ancak dosya diskte bulunamadı. Coolify&apos;da /app/uploads kalıcı depolamayı
+                kontrol edip logoyu yeniden yükleyin.
+              </p>
+            )}
             {data?.updatedAt && (
               <p className="text-xs text-muted-foreground">
                 Son güncelleme: {new Date(data.updatedAt).toLocaleString("tr-TR")}

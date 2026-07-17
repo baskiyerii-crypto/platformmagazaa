@@ -1,8 +1,8 @@
-import { readFile, writeFile } from "fs/promises";
+import { readFile, writeFile, access } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 import { prisma } from "@magaza/database";
-import { deleteUploadedFile, ensureUploadDir } from "@/lib/upload";
+import { deleteUploadedFile, ensureUploadDir, findUploadFile } from "@/lib/upload";
 
 export const APP_LOGO_SOURCE_REF = "APP_LOGO";
 
@@ -14,9 +14,10 @@ export function getPublicBaseUrl(): string {
   ).replace(/\/$/, "");
 }
 
-export function getBrandingIconUrl(size: 192 | 512 | 180): string {
+export function getBrandingIconUrl(size: 192 | 512 | 180, version?: string | null): string {
   const segment = size === 180 ? "apple-touch-icon" : String(size);
-  return `/api/v1/branding/icon/${segment}`;
+  const base = `/api/v1/branding/icon/${segment}`;
+  return version ? `${base}?v=${encodeURIComponent(version)}` : base;
 }
 
 export function getBrandingIconAbsoluteUrl(size: 192 | 512 | 180): string {
@@ -32,13 +33,27 @@ export async function getActiveAppLogo() {
 
 async function readLogoFileBuffer(url: string): Promise<Buffer | null> {
   const filename = path.basename(url.split("?")[0] ?? url);
-  const uploadDir = await ensureUploadDir();
-  const fullPath = path.join(uploadDir, filename);
+  const filePath = await findUploadFile(filename);
+  if (!filePath) return null;
   try {
-    return await readFile(fullPath);
+    return await readFile(filePath);
   } catch {
     return null;
   }
+}
+
+export async function getBrandingLogoStatus() {
+  const logo = await getActiveAppLogo();
+  if (!logo) {
+    return { logoUrl: null as string | null, updatedAt: null as string | null, fileExists: false };
+  }
+  const filename = path.basename(logo.url.split("?")[0] ?? logo.url);
+  const filePath = await findUploadFile(filename);
+  return {
+    logoUrl: logo.url,
+    updatedAt: logo.createdAt.toISOString(),
+    fileExists: Boolean(filePath),
+  };
 }
 
 export async function generateDefaultIconPng(size: number): Promise<Buffer> {
@@ -100,6 +115,13 @@ export async function saveAppLogo(file: File, createdById: string): Promise<stri
     .toBuffer();
 
   await writeFile(path.join(uploadDir, filename), square);
+  try {
+    await access(path.join(uploadDir, filename));
+  } catch {
+    throw new Error(
+      "Logo dosyası diske yazılamadı. Coolify Persistent Storage yolunun /app/uploads olduğundan emin olun."
+    );
+  }
 
   const url = `/api/v1/uploads/${filename}`;
 

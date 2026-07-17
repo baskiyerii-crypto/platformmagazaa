@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
-import { getActiveAppLogo, saveAppLogo } from "@/lib/branding";
+import { getBrandingLogoStatus, saveAppLogo } from "@/lib/branding";
 import { withAuth } from "@/lib/api-auth";
 
 export const GET = withAuth(
   async () => {
-    const logo = await getActiveAppLogo();
-    return NextResponse.json({
-      logoUrl: logo?.url ?? null,
-      updatedAt: logo?.createdAt ?? null,
-    });
+    const status = await getBrandingLogoStatus();
+    return NextResponse.json(status);
   },
   { strictAdminOnly: true }
 );
@@ -22,8 +19,8 @@ export const POST = withAuth(
     }
 
     try {
-      const logoUrl = await saveAppLogo(file, auth.userId);
-      return NextResponse.json({ success: true, logoUrl });
+      const status = await getBrandingLogoStatus();
+      return NextResponse.json({ success: true, ...status });
     } catch (error) {
       return NextResponse.json(
         { error: error instanceof Error ? error.message : "Logo yüklenemedi" },
