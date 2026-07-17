@@ -14,13 +14,14 @@ import {
 } from "@/lib/web-push-client";
 
 export function AppSettingsManager() {
-  const { ready, standalone, canPromptInstall, installApp, ios } = usePwaInstall();
+  const { standalone, canPromptInstall, installApp, ios } = usePwaInstall();
   const [installBusy, setInstallBusy] = useState(false);
   const [installMessage, setInstallMessage] = useState("");
   const [pushState, setPushState] = useState<WebPushState>("idle");
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
   const [pushSupported, setPushSupported] = useState(true);
+  const [clientReady, setClientReady] = useState(false);
 
   const refreshPushState = useCallback(async () => {
     if (!canUseWebPush()) {
@@ -51,9 +52,13 @@ export function AppSettingsManager() {
   }, [ios, standalone]);
 
   useEffect(() => {
-    if (!ready) return;
+    setClientReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!clientReady) return;
     void refreshPushState();
-  }, [ready, refreshPushState]);
+  }, [clientReady, refreshPushState]);
 
   async function handleInstall() {
     setInstallBusy(true);
@@ -123,21 +128,9 @@ export function AppSettingsManager() {
   }
 
   const pushOn = pushState === "enabled";
-
-  // Identical SSR + first client paint — browser UI only after ready
-  if (!ready) {
-    return (
-      <div className="space-y-6">
-        <PageHeader
-          title="Uygulama Ayarları"
-          subtitle="Ana ekrana ekleme ve bildirim tercihleri"
-        />
-        <Card>
-          <CardContent className="py-8 text-sm text-muted-foreground">Yükleniyor...</CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Use safe SSR defaults until client mounts (ios/standalone stay false until then)
+  const showIos = clientReady && ios;
+  const showStandalone = clientReady && standalone;
 
   return (
     <div className="space-y-6">
@@ -151,29 +144,29 @@ export function AppSettingsManager() {
           <CardTitle className="text-base">Ana ekrana / masaüstüne ekle</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {standalone ? (
+          {showStandalone ? (
             <p className="text-sm text-muted-foreground">
               Uygulama zaten ana ekrandan / masaüstünden açık.
             </p>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                {ios
+                {showIos
                   ? "iPhone’da Safari Paylaş menüsünden ekleyin; Android/PC’de buton kurulum penceresini açar."
                   : "Butona basınca tarayıcı kurulum penceresi açılır ve uygulama eklenir."}
               </p>
               <Button onClick={() => void handleInstall()} disabled={installBusy} className="w-full sm:w-auto">
-                {ios ? (
+                {showIos ? (
                   <MonitorSmartphone className="mr-2 h-4 w-4" />
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
-                {installBusy ? "Ekleniyor..." : ios ? "Nasıl eklenir?" : "Ana ekrana ekle"}
+                {installBusy ? "Ekleniyor..." : showIos ? "Nasıl eklenir?" : "Ana ekrana ekle"}
               </Button>
-              {canPromptInstall ? (
+              {clientReady && canPromptInstall ? (
                 <p className="text-xs text-emerald-700">Kurulum hazır — butona basın.</p>
               ) : null}
-              {ios ? (
+              {showIos ? (
                 <p className="flex items-start gap-2 text-xs text-muted-foreground">
                   <Share className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   Safari → Paylaş → Ana Ekrana Ekle
@@ -195,9 +188,11 @@ export function AppSettingsManager() {
           <p className="text-sm text-muted-foreground">
             Duyuru ve talepler için tarayıcı / masaüstü bildirimlerini açıp kapatın.
           </p>
-          {!pushSupported ? (
+          {!clientReady ? (
+            <p className="text-sm text-muted-foreground">Bildirim durumu kontrol ediliyor...</p>
+          ) : !pushSupported ? (
             <p className="text-sm text-destructive">Bu cihaz web bildirimlerini desteklemiyor.</p>
-          ) : ios && !standalone ? (
+          ) : showIos && !showStandalone ? (
             <p className="text-sm text-amber-700">
               iPhone’da önce Ana Ekrana Ekle yapın, uygulamayı o ikondan açın, sonra bildirimleri açın.
             </p>

@@ -29,9 +29,12 @@ export function NotificationBell() {
   const [pushState, setPushState] = useState<WebPushState>("idle");
   const [pushLoading, setPushLoading] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  // SSR + first paint must match — never read window APIs during render
+  const [pushAvailable, setPushAvailable] = useState(false);
 
-  const pushAvailable =
-    canUseWebPush() && (!isIosDevice() || isStandaloneMode());
+  useEffect(() => {
+    setPushAvailable(canUseWebPush() && (!isIosDevice() || isStandaloneMode()));
+  }, []);
 
   async function loadCount() {
     if (document.hidden) return;
