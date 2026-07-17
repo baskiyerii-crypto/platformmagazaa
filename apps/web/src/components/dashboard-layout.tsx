@@ -24,8 +24,9 @@ import {
   Smartphone,
   CircleDollarSign,
   UserPlus,
+  Palette,
 } from "lucide-react";
-import { isStaffRole } from "@magaza/shared";
+import { isStaffRole, isAdminRole } from "@magaza/shared";
 import type { UserRole } from "@magaza/shared";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -52,6 +53,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/requests", label: "Talepler", icon: ClipboardList },
   { href: "/admin/export", label: "Excel Export", icon: Download },
   { href: "/admin/mobile-app", label: "Mobil Uygulama", icon: Smartphone },
+  { href: "/admin/branding", label: "Uygulama Logosu", icon: Palette },
 ];
 
 const storeNav: NavItem[] = [
@@ -121,7 +123,9 @@ export function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const nav = isStaffRole(role) ? adminNav : storeNav;
+  const nav = isStaffRole(role)
+    ? adminNav.filter((item) => item.href !== "/admin/branding" || isAdminRole(role))
+    : storeNav;
   const panelTitle =
     role === "MANAGER" ? "Müdür Paneli" : role === "ADMIN" ? "Yönetici Paneli" : "Mağaza Paneli";
 

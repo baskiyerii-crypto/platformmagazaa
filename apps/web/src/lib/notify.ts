@@ -1,6 +1,7 @@
 import { Expo, ExpoPushMessage } from "expo-server-sdk";
 import { prisma } from "@magaza/database";
 import type { NotificationType } from "@magaza/shared";
+import { sendWebPushToUsers } from "@/lib/web-push";
 
 const expo = new Expo();
 
@@ -23,7 +24,14 @@ export async function notifyUsers(
   await prisma.notification.createMany({
     data: unique.map((userId) => ({ userId, ...params })),
   });
-  await sendPushToUsers(unique, params.title, params.body, params.linkUrl);
+  await Promise.allSettled([
+    sendPushToUsers(unique, params.title, params.body, params.linkUrl),
+    sendWebPushToUsers(unique, {
+      title: params.title,
+      body: params.body,
+      linkUrl: params.linkUrl,
+    }),
+  ]);
 }
 
 export async function notifyStaff(params: Omit<Parameters<typeof createNotification>[0], "userId">) {

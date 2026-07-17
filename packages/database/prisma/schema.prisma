@@ -110,6 +110,7 @@ model User {
   changeRequestHistory ChangeRequestHistory[]
   catalogRequestHistory CatalogRequestHistory[]
   pushTokens           PushToken[]
+  webPushSubscriptions WebPushSubscription[]
   notifications        Notification[]
   announcements        Announcement[] @relation("AnnouncementAuthor")
   mediaAssets          MediaAsset[]
@@ -345,6 +346,21 @@ model PushToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model WebPushSubscription {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint       String    @unique
+  p256dh         String
+  auth           String
+  expirationTime DateTime?
+  userAgent      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([userId])
 }
