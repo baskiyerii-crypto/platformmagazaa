@@ -9,26 +9,27 @@ import { usePwaInstall } from "@/components/pwa-install-context";
 import {
   canUseWebPush,
   ensureServiceWorkerRegistration,
-  isIosDevice,
-  isStandaloneMode,
   syncWebPushSubscription,
   type WebPushState,
 } from "@/lib/web-push-client";
 
 export function AppSettingsManager() {
-  const { standalone, canPromptInstall, installApp, ios } = usePwaInstall();
+  const { ready, standalone, canPromptInstall, installApp, ios } = usePwaInstall();
   const [installBusy, setInstallBusy] = useState(false);
   const [installMessage, setInstallMessage] = useState("");
   const [pushState, setPushState] = useState<WebPushState>("idle");
   const [pushBusy, setPushBusy] = useState(false);
   const [pushMessage, setPushMessage] = useState("");
+  const [pushSupported, setPushSupported] = useState(true);
 
   const refreshPushState = useCallback(async () => {
     if (!canUseWebPush()) {
+      setPushSupported(false);
       setPushState("unsupported");
       return;
     }
-    if (isIosDevice() && !isStandaloneMode()) {
+    setPushSupported(true);
+    if (ios && !standalone) {
       setPushState("idle");
       return;
     }
@@ -47,26 +48,29 @@ export function AppSettingsManager() {
     } catch {
       setPushState("idle");
     }
-  }, []);
+  }, [ios, standalone]);
 
   useEffect(() => {
+    if (!ready) return;
     void refreshPushState();
-  }, [refreshPushState]);
+  }, [ready, refreshPushState]);
 
   async function handleInstall() {
     setInstallBusy(true);
-    setInstallMessage("");
+    setInstallMessage("Kurulum hazırlanıyor...");
     try {
       const outcome = await installApp();
       if (outcome === "accepted") {
         setInstallMessage("Uygulama ana ekrana / masaüstüne eklendi.");
+      } else if (outcome === "already-installed") {
+        setInstallMessage("Uygulama zaten yüklü. Masaüstü kısayolundan veya Chrome Uygulamalar’dan açın.");
       } else if (outcome === "dismissed") {
         setInstallMessage("Kurulum iptal edildi. Tekrar deneyebilirsiniz.");
       } else if (ios) {
         setInstallMessage("Safari’de Paylaş → Ana Ekrana Ekle yolunu kullanın.");
       } else {
         setInstallMessage(
-          "Kurulum şu an hazır değil. Sayfayı yenileyip tekrar deneyin veya Chrome menü → Uygulamayı yükle."
+          "Tarayıcı kurulum penceresini açmadı. Sayfayı yenileyin; hâlâ olmazsa Chrome menü (⋮) → Uygulamayı yükle / Ana ekrana ekle."
         );
       }
     } catch (error) {
@@ -84,8 +88,7 @@ export function AppSettingsManager() {
       const result = await syncWebPushSubscription(true);
       setPushState(result.state);
       setPushMessage(
-        result.message ??
-          (result.ok ? "Bildirimler açıldı." : "Bildirimler açılamadı.")
+        result.message ?? (result.ok ? "Bildirimler açıldı." : "Bildirimler açılamadı.")
       );
     } catch (error) {
       setPushState("idle");
@@ -121,6 +124,21 @@ export function AppSettingsManager() {
 
   const pushOn = pushState === "enabled";
 
+  // Identical SSR + first client paint — browser UI only after ready
+  if (!ready) {
+    return (
+      <div className="space-y-6">
+        <PageHeader
+          title="Uygulama Ayarları"
+          subtitle="Ana ekrana ekleme ve bildirim tercihleri"
+        />
+        <Card>
+          <CardContent className="py-8 text-sm text-muted-foreground">Yükleniyor...</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -150,15 +168,12 @@ export function AppSettingsManager() {
                 ) : (
                   <Download className="mr-2 h-4 w-4" />
                 )}
-                {installBusy
-                  ? "Ekleniyor..."
-                  : canPromptInstall
-                    ? "Ana ekrana ekle"
-                    : ios
-                      ? "Nasıl eklenir?"
-                      : "Ana ekrana ekle"}
+                {installBusy ? "Ekleniyor..." : ios ? "Nasıl eklenir?" : "Ana ekrana ekle"}
               </Button>
-              {ios && !standalone ? (
+              {canPromptInstall ? (
+                <p className="text-xs text-emerald-700">Kurulum hazır — butona basın.</p>
+              ) : null}
+              {ios ? (
                 <p className="flex items-start gap-2 text-xs text-muted-foreground">
                   <Share className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   Safari → Paylaş → Ana Ekrana Ekle
@@ -180,9 +195,9 @@ export function AppSettingsManager() {
           <p className="text-sm text-muted-foreground">
             Duyuru ve talepler için tarayıcı / masaüstü bildirimlerini açıp kapatın.
           </p>
-          {!canUseWebPush() ? (
+          {!pushSupported ? (
             <p className="text-sm text-destructive">Bu cihaz web bildirimlerini desteklemiyor.</p>
-          ) : isIosDevice() && !standalone ? (
+          ) : ios && !standalone ? (
             <p className="text-sm text-amber-700">
               iPhone’da önce Ana Ekrana Ekle yapın, uygulamayı o ikondan açın, sonra bildirimleri açın.
             </p>

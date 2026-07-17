@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { isIosDevice, isStandaloneMode } from "@/lib/web-push-client";
+import { ensureServiceWorkerRegistration, isIosDevice, isStandaloneMode } from "@/lib/web-push-client";
 
 export type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -23,11 +23,12 @@ declare global {
 }
 
 type PwaInstallContextValue = {
+  ready: boolean;
   installEvent: BeforeInstallPromptEvent | null;
   standalone: boolean;
   ios: boolean;
   canPromptInstall: boolean;
-  installApp: () => Promise<"accepted" | "dismissed" | "unavailable">;
+  installApp: () => Promise<"accepted" | "dismissed" | "unavailable" | "already-installed">;
   installHint: string;
 };
 
@@ -38,56 +39,92 @@ function readDeferredPrompt(): BeforeInstallPromptEvent | null {
   return window.__deferredInstallPrompt ?? null;
 }
 
+function waitForInstallPrompt(ms = 2500): Promise<BeforeInstallPromptEvent | null> {
+  const existing = readDeferredPrompt();
+  if (existing) return Promise.resolve(existing);
+
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (value: BeforeInstallPromptEvent | null) => {
+      if (settled) return;
+      settled = true;
+      window.removeEventListener("beforeinstallprompt", onBip);
+      window.removeEventListener("pwa-install-available", onAvail);
+      clearTimeout(timer);
+      resolve(value);
+    };
+    const onBip = (event: Event) => {
+      event.preventDefault();
+      const bip = event as BeforeInstallPromptEvent;
+      window.__deferredInstallPrompt = bip;
+      finish(bip);
+    };
+    const onAvail = () => finish(readDeferredPrompt());
+    window.addEventListener("beforeinstallprompt", onBip);
+    window.addEventListener("pwa-install-available", onAvail);
+    const timer = window.setTimeout(() => finish(readDeferredPrompt()), ms);
+  });
+}
+
 export function PwaInstallProvider({ children }: { children: ReactNode }) {
+  // Safe SSR defaults — never read window during first render (avoids React #418)
+  const [ready, setReady] = useState(false);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [standalone, setStandalone] = useState(false);
-  const ios = useMemo(() => isIosDevice(), []);
+  const [ios, setIos] = useState(false);
 
   useEffect(() => {
+    setIos(isIosDevice());
     setStandalone(isStandaloneMode());
-    const media = window.matchMedia("(display-mode: standalone)");
-    const onChange = () => setStandalone(isStandaloneMode());
-    media.addEventListener?.("change", onChange);
-    window.addEventListener("appinstalled", onChange);
-    return () => {
-      media.removeEventListener?.("change", onChange);
-      window.removeEventListener("appinstalled", onChange);
-    };
-  }, []);
+    setReady(true);
 
-  useEffect(() => {
-    // Capture may have fired before React hydrated (inline script in layout).
-    const existing = readDeferredPrompt();
-    if (existing) setInstallEvent(existing);
-
-    const handler = (event: Event) => {
+    const capture = (event: Event) => {
       event.preventDefault();
       const bip = event as BeforeInstallPromptEvent;
       window.__deferredInstallPrompt = bip;
       setInstallEvent(bip);
+      window.dispatchEvent(new Event("pwa-install-available"));
     };
-    const onAvailable = () => {
-      const bip = readDeferredPrompt();
-      if (bip) setInstallEvent(bip);
-    };
+
+    // Register SW first — Chrome often needs it before beforeinstallprompt
+    void ensureServiceWorkerRegistration()
+      .catch(() => null)
+      .finally(() => {
+        const existing = readDeferredPrompt();
+        if (existing) setInstallEvent(existing);
+      });
+
     const onInstalled = () => {
       window.__deferredInstallPrompt = null;
       setInstallEvent(null);
+      setStandalone(true);
     };
+    const onDisplayChange = () => setStandalone(isStandaloneMode());
+    const media = window.matchMedia("(display-mode: standalone)");
 
-    window.addEventListener("beforeinstallprompt", handler);
-    window.addEventListener("pwa-install-available", onAvailable);
+    window.addEventListener("beforeinstallprompt", capture);
     window.addEventListener("appinstalled", onInstalled);
+    media.addEventListener?.("change", onDisplayChange);
+
     return () => {
-      window.removeEventListener("beforeinstallprompt", handler);
-      window.removeEventListener("pwa-install-available", onAvailable);
+      window.removeEventListener("beforeinstallprompt", capture);
       window.removeEventListener("appinstalled", onInstalled);
+      media.removeEventListener?.("change", onDisplayChange);
     };
   }, []);
 
   const installApp = useCallback(async () => {
-    const event = installEvent ?? readDeferredPrompt();
+    if (isStandaloneMode()) return "already-installed" as const;
+
+    await ensureServiceWorkerRegistration().catch(() => null);
+
+    let event = installEvent ?? readDeferredPrompt();
+    if (!event) {
+      event = await waitForInstallPrompt(3000);
+      if (event) setInstallEvent(event);
+    }
     if (!event) return "unavailable" as const;
+
     await event.prompt();
     const choice = await event.userChoice;
     if (choice.outcome === "accepted") {
@@ -97,20 +134,19 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
     return choice.outcome;
   }, [installEvent]);
 
-  const installHint = useMemo(() => {
-    if (ios) {
-      return "Safari’de Paylaş → Ana Ekrana Ekle";
-    }
-    if (installEvent || readDeferredPrompt()) {
-      return "Tek tıkla masaüstüne / ana ekrana ekleyin";
-    }
-    return "Kurulum hazır değilse sayfayı yenileyin. Chrome/Edge menü → Uygulamayı yükle.";
-  }, [ios, installEvent]);
+  const canPromptInstall = ready && Boolean(installEvent) && !standalone;
 
-  const canPromptInstall = Boolean((installEvent || (typeof window !== "undefined" && window.__deferredInstallPrompt)) && !standalone);
+  const installHint = useMemo(() => {
+    if (!ready) return "";
+    if (ios) return "Safari’de Paylaş → Ana Ekrana Ekle";
+    if (standalone) return "Uygulama zaten yüklü.";
+    if (installEvent) return "Tek tıkla masaüstüne / ana ekrana ekleyin";
+    return "Kurulum hazırlanıyor olabilir. Birkaç saniye bekleyip tekrar deneyin.";
+  }, [ready, ios, standalone, installEvent]);
 
   const value = useMemo<PwaInstallContextValue>(
     () => ({
+      ready,
       installEvent,
       standalone,
       ios,
@@ -118,7 +154,7 @@ export function PwaInstallProvider({ children }: { children: ReactNode }) {
       installApp,
       installHint,
     }),
-    [installEvent, standalone, ios, canPromptInstall, installApp, installHint]
+    [ready, installEvent, standalone, ios, canPromptInstall, installApp, installHint]
   );
 
   return <PwaInstallContext.Provider value={value}>{children}</PwaInstallContext.Provider>;
