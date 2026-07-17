@@ -28,6 +28,7 @@ const ADMIN_LINKS = [
   { href: "/admin/requests", label: "Ürün / Değişim Talepleri", desc: "Ürün ve görsel talepleri" },
   { href: "/admin/campaign-requests", label: "Kampanya Talepleri", desc: "Kampanya adet talepleri" },
   { href: "/admin/export", label: "Excel Export", desc: "Veri indir" },
+  { href: "/admin/app-settings", label: "Uygulama Ayarları", desc: "Ana ekrana ekle ve bildirimler" },
   { href: "/notifications", label: "Bildirimler", desc: "Push ve uygulama içi" },
 ];
 

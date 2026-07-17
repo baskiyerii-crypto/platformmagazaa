@@ -12,6 +12,7 @@ export const STORE_MENU: MenuItem[] = [
   { href: "/store/ad-expenses", label: "Reklam Giderleri" },
   { href: "/store/support", label: "Destek" },
   { href: "/store/requests", label: "Değişim Talepleri" },
+  { href: "/store/app-settings", label: "Uygulama Ayarları" },
   { href: "/notifications", label: "Bildirimler" },
 ];
 
@@ -30,5 +31,6 @@ export const ADMIN_MENU: MenuItem[] = [
   { href: "/admin/campaign-requests", label: "Kampanya Talepleri" },
   { href: "/admin/export", label: "Excel Export" },
   { href: "/admin/mobile-app", label: "Mobil Uygulama" },
+  { href: "/admin/app-settings", label: "Uygulama Ayarları" },
   { href: "/notifications", label: "Bildirimler" },
 ];

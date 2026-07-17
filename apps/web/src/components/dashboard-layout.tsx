@@ -25,6 +25,7 @@ import {
   CircleDollarSign,
   UserPlus,
   Palette,
+  AppWindow,
 } from "lucide-react";
 import { isStaffRole, isAdminRole } from "@magaza/shared";
 import type { UserRole } from "@magaza/shared";
@@ -33,7 +34,6 @@ import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
 import { DeveloperFooter } from "@/components/developer-footer";
 import { NotificationBell } from "@/components/notification-bell";
-import { PwaInstallSidebarButton } from "@/components/pwa-install-sidebar-button";
 
 type NavItem = {
   href: string;
@@ -58,6 +58,7 @@ const adminNav: NavItem[] = [
   { href: "/admin/export", label: "Excel Export", icon: Download },
   { href: "/admin/mobile-app", label: "Mobil Uygulama", icon: Smartphone },
   { href: "/admin/branding", label: "Uygulama Logosu", icon: Palette },
+  { href: "/admin/app-settings", label: "Uygulama Ayarları", icon: AppWindow },
 ];
 
 const storeNav: NavItem[] = [
@@ -71,6 +72,7 @@ const storeNav: NavItem[] = [
   { href: "/store/ad-expenses", label: "Reklam Giderleri", icon: CircleDollarSign },
   { href: "/store/support", label: "Destek", icon: LifeBuoy },
   { href: "/store/requests", label: "Değişim Talepleri", icon: ClipboardList },
+  { href: "/store/app-settings", label: "Uygulama Ayarları", icon: AppWindow },
 ];
 
 function NavLinks({
@@ -166,8 +168,7 @@ export function DashboardLayout({
           <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
             <NavLinks nav={nav} pathname={pathname} variant="desktop" />
           </nav>
-          <div className="border-t border-white/10 p-3 space-y-1">
-            <PwaInstallSidebarButton variant="desktop" />
+          <div className="border-t border-white/10 p-3">
             <Button
               variant="ghost"
               className="w-full justify-start text-[hsl(var(--sidebar-muted))] hover:bg-white/10 hover:text-[hsl(var(--sidebar-foreground))]"
@@ -211,8 +212,7 @@ export function DashboardLayout({
             <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
               <NavLinks nav={nav} pathname={pathname} onNavigate={() => setMobileOpen(false)} variant="mobile" />
             </nav>
-            <div className="border-t p-3 space-y-2">
-              <PwaInstallSidebarButton variant="mobile" />
+            <div className="border-t p-3">
               <Button variant="outline" className="w-full" onClick={() => signOut({ callbackUrl: "/login" })}>
                 Çıkış
               </Button>
