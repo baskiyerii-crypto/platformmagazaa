@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getActiveAppLogo, getBrandingIconBuffer } from "@/lib/branding";
 
-function parseSize(raw: string): 192 | 512 | 180 | null {
+function parseSize(raw: string): 192 | 512 | 180 | 96 | 48 | null {
   if (raw === "apple-touch-icon") return 180;
-  if (raw === "192") return 192;
   if (raw === "512") return 512;
+  if (raw === "192") return 192;
+  if (raw === "180") return 180;
+  if (raw === "96") return 96;
+  if (raw === "48") return 48;
   return null;
 }
 
@@ -18,15 +21,26 @@ export async function GET(
     return NextResponse.json({ error: "Geçersiz ikon boyutu" }, { status: 400 });
   }
 
-  const logo = await getActiveAppLogo();
-  const etag = logo ? `"logo-${logo.createdAt.getTime()}"` : '"logo-default"';
+  let etag = '"logo-default"';
+  let lastModified: string | undefined;
+  try {
+    const logo = await getActiveAppLogo();
+    if (logo) {
+      etag = `"logo-${logo.createdAt.getTime()}"`;
+      lastModified = logo.createdAt.toUTCString();
+    }
+  } catch {
+    /* use default etag */
+  }
+
   const ifNoneMatch = request.headers.get("if-none-match");
   if (ifNoneMatch === etag) {
     return new NextResponse(null, {
       status: 304,
       headers: {
         ETag: etag,
-        "Cache-Control": "no-store, must-revalidate",
+        // Cacheable — Chrome/Windows need this for PWA shortcut icons
+        "Cache-Control": "public, max-age=3600, must-revalidate",
       },
     });
   }
@@ -35,9 +49,9 @@ export async function GET(
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "image/png",
-      "Cache-Control": "no-store, must-revalidate",
+      "Cache-Control": "public, max-age=3600, must-revalidate",
       ETag: etag,
-      ...(logo?.createdAt ? { "Last-Modified": logo.createdAt.toUTCString() } : {}),
+      ...(lastModified ? { "Last-Modified": lastModified } : {}),
     },
   });
 }
