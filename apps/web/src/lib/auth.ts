@@ -70,29 +70,43 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
+          console.warn("[auth] Authorize failed: Missing username or password");
           return null;
         }
 
         const username = credentials.username.trim();
         const password = credentials.password;
 
-        const user = await prisma.user.findUnique({
-          where: { username },
-          include: { store: true },
-        });
+        try {
+          console.log(`[auth] Attempting login for user: ${username}`);
+          const user = await prisma.user.findUnique({
+            where: { username },
+            include: { store: true },
+          });
 
-        if (!user) return null;
+          if (!user) {
+            console.warn(`[auth] Login failed: User not found: ${username}`);
+            return null;
+          }
 
-        const valid = await bcrypt.compare(password, user.passwordHash);
-        if (!valid) return null;
+          const valid = await bcrypt.compare(password, user.passwordHash);
+          if (!valid) {
+            console.warn(`[auth] Login failed: Incorrect password for user: ${username}`);
+            return null;
+          }
 
-        return {
-          id: user.id,
-          username: user.username,
-          role: user.role,
-          storeId: user.storeId,
-          storeName: user.store?.name ?? null,
-        };
+          console.log(`[auth] Login successful for user: ${username} (${user.role})`);
+          return {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            storeId: user.storeId,
+            storeName: user.store?.name ?? null,
+          };
+        } catch (error: any) {
+          console.error("[auth] FATAL ERROR during authorize:", error?.message || error);
+          throw error;
+        }
       },
     }),
   ],
