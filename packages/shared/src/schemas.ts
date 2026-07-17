@@ -314,6 +314,7 @@ export const updateAdExpenseCategorySchema = createAdExpenseCategorySchema.parti
 export const adExpenseLineSchema = z.object({
   categoryId: z.string().min(1),
   announcementId: z.string().optional().nullable(),
+  catalogCampaignId: z.string().optional().nullable(),
   title: z.string().min(1, "Başlık gerekli"),
   quantity: z.number().int().positive("Adet 1 veya daha fazla olmalı"),
   totalPrice: z.number().positive("Toplam fiyat 0'dan büyük olmalı"),

@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { BrandLogo } from "@/components/brand-logo";
 import { DeveloperFooter } from "@/components/developer-footer";
 import { NotificationBell } from "@/components/notification-bell";
+import { PwaInstallSidebarButton } from "@/components/pwa-install-sidebar-button";
 
 type NavItem = {
   href: string;
@@ -165,7 +166,8 @@ export function DashboardLayout({
           <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
             <NavLinks nav={nav} pathname={pathname} variant="desktop" />
           </nav>
-          <div className="border-t border-white/10 p-3">
+          <div className="border-t border-white/10 p-3 space-y-1">
+            <PwaInstallSidebarButton variant="desktop" />
             <Button
               variant="ghost"
               className="w-full justify-start text-[hsl(var(--sidebar-muted))] hover:bg-white/10 hover:text-[hsl(var(--sidebar-foreground))]"
@@ -209,7 +211,8 @@ export function DashboardLayout({
             <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
               <NavLinks nav={nav} pathname={pathname} onNavigate={() => setMobileOpen(false)} variant="mobile" />
             </nav>
-            <div className="border-t p-3">
+            <div className="border-t p-3 space-y-2">
+              <PwaInstallSidebarButton variant="mobile" />
               <Button variant="outline" className="w-full" onClick={() => signOut({ callbackUrl: "/login" })}>
                 Çıkış
               </Button>

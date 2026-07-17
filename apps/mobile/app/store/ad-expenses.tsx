@@ -6,7 +6,7 @@ import { STORE_MENU } from "@/lib/menus";
 import { colors } from "@/components/theme";
 
 type Category = { id: string; name: string };
-type Campaign = { id: string; title: string };
+type Campaign = { id: string; title: string; name?: string };
 type Expense = {
   id: string;
   title: string;
@@ -15,11 +15,12 @@ type Expense = {
   expenseDate: string;
   category: { name: string };
   announcement?: { title: string } | null;
+  catalogCampaign?: { name: string } | null;
 };
 
 type Draft = {
   categoryId: string;
-  announcementId: string;
+  catalogCampaignId: string;
   title: string;
   quantity: string;
   totalPrice: string;
@@ -33,7 +34,7 @@ function today() {
 function emptyDraft(): Draft {
   return {
     categoryId: "",
-    announcementId: "",
+    catalogCampaignId: "",
     title: "",
     quantity: "1",
     totalPrice: "",
@@ -43,6 +44,10 @@ function emptyDraft(): Draft {
 
 function money(n: number) {
   return n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function campaignLabel(e: Expense) {
+  return e.catalogCampaign?.name ?? e.announcement?.title ?? null;
 }
 
 export default function StoreAdExpenses() {
@@ -82,7 +87,7 @@ export default function StoreAdExpenses() {
       await api.post("/api/v1/ad-expenses", {
         items: drafts.map((d) => ({
           categoryId: d.categoryId,
-          announcementId: d.announcementId || null,
+          catalogCampaignId: d.catalogCampaignId || null,
           title: d.title.trim(),
           quantity: Number(d.quantity),
           totalPrice: Number(d.totalPrice),
@@ -118,7 +123,17 @@ export default function StoreAdExpenses() {
   }
 
   return (
-    <Screen title="Reklam Giderleri" subtitle="Kampanya veya bağımsız gider" menuItems={STORE_MENU}>
+    <Screen
+      title="Reklam Giderleri"
+      subtitle="Kampanyalar Kampanya Yönetimi’nden gelir"
+      menuItems={STORE_MENU}
+    >
+      {campaigns.length === 0 ? (
+        <Text style={[styles.cardBody, { marginBottom: 8 }]}>
+          Henüz aktif kampanya yok. Yönetici Kampanya Yönetimi’nden eklemeli.
+        </Text>
+      ) : null}
+
       {drafts.map((d, idx) => (
         <Card key={idx}>
           <Text style={styles.cardTitle}>Satır {idx + 1}</Text>
@@ -136,26 +151,46 @@ export default function StoreAdExpenses() {
           </View>
           <Text style={styles.inputLabel}>Kampanya (opsiyonel)</Text>
           <Text
-            style={{ color: !d.announcementId ? colors.primary : colors.textMuted, marginBottom: 4 }}
-            onPress={() => updateDraft(idx, { announcementId: "" })}
+            style={{ color: !d.catalogCampaignId ? colors.primary : colors.textMuted, marginBottom: 4 }}
+            onPress={() => updateDraft(idx, { catalogCampaignId: "" })}
           >
-            {!d.announcementId ? "●" : "○"} Kampanya dışı
+            {!d.catalogCampaignId ? "●" : "○"} Kampanya dışı
           </Text>
           {campaigns.map((c) => (
             <Text
               key={c.id}
-              style={{ color: d.announcementId === c.id ? colors.primary : colors.textMuted, marginBottom: 4 }}
-              onPress={() => updateDraft(idx, { announcementId: c.id })}
+              style={{
+                color: d.catalogCampaignId === c.id ? colors.primary : colors.textMuted,
+                marginBottom: 4,
+              }}
+              onPress={() => updateDraft(idx, { catalogCampaignId: c.id })}
             >
-              {d.announcementId === c.id ? "●" : "○"} {c.title}
+              {d.catalogCampaignId === c.id ? "●" : "○"} {c.title || c.name}
             </Text>
           ))}
           <InputField label="Başlık" value={d.title} onChangeText={(t) => updateDraft(idx, { title: t })} />
-          <InputField label="Adet" value={d.quantity} onChangeText={(t) => updateDraft(idx, { quantity: t })} keyboardType="numeric" />
-          <InputField label="Toplam fiyat (TL)" value={d.totalPrice} onChangeText={(t) => updateDraft(idx, { totalPrice: t })} keyboardType="numeric" />
-          <InputField label="Tarih (YYYY-MM-DD)" value={d.expenseDate} onChangeText={(t) => updateDraft(idx, { expenseDate: t })} />
+          <InputField
+            label="Adet"
+            value={d.quantity}
+            onChangeText={(t) => updateDraft(idx, { quantity: t })}
+            keyboardType="numeric"
+          />
+          <InputField
+            label="Toplam fiyat (TL)"
+            value={d.totalPrice}
+            onChangeText={(t) => updateDraft(idx, { totalPrice: t })}
+            keyboardType="numeric"
+          />
+          <InputField
+            label="Tarih (YYYY-MM-DD)"
+            value={d.expenseDate}
+            onChangeText={(t) => updateDraft(idx, { expenseDate: t })}
+          />
           {drafts.length > 1 && (
-            <SecondaryButton label="Satırı kaldır" onPress={() => setDrafts((prev) => prev.filter((_, i) => i !== idx))} />
+            <SecondaryButton
+              label="Satırı kaldır"
+              onPress={() => setDrafts((prev) => prev.filter((_, i) => i !== idx))}
+            />
           )}
         </Card>
       ))}
@@ -169,7 +204,7 @@ export default function StoreAdExpenses() {
           <Text style={styles.cardTitle}>{e.title}</Text>
           <Text style={styles.cardBody}>
             {e.category.name}
-            {e.announcement ? ` · ${e.announcement.title}` : " · Kampanya dışı"} · {e.quantity} adet
+            {campaignLabel(e) ? ` · ${campaignLabel(e)}` : " · Kampanya dışı"} · {e.quantity} adet
           </Text>
           <Text style={styles.cardSubtitle}>
             {money(e.totalPrice)} TL · {new Date(e.expenseDate).toLocaleDateString("tr-TR")}

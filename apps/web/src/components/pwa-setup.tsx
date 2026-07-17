@@ -4,30 +4,23 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Bell, Download, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { usePwaInstall } from "@/components/pwa-install-context";
 import {
   canUseWebPush,
   isIosDevice,
-  isStandaloneMode,
   syncWebPushSubscription,
   type WebPushState,
 } from "@/lib/web-push-client";
 
-type BeforeInstallPromptEvent = Event & {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-};
-
 export function PwaSetup() {
   const { status } = useSession();
-  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
+  const { installEvent, standalone, installApp, ios } = usePwaInstall();
   const [dismissedInstall, setDismissedInstall] = useState(false);
   const [dismissedIos, setDismissedIos] = useState(false);
   const [pushState, setPushState] = useState<WebPushState>("idle");
   const [pushMessage, setPushMessage] = useState("");
 
-  const ios = useMemo(() => isIosDevice(), []);
-  const standalone = useMemo(() => isStandaloneMode(), []);
-  const desktop = useMemo(() => !ios, [ios]);
+  const desktop = useMemo(() => !isIosDevice(), []);
 
   const syncPushSubscription = useCallback(async (requestPermission = false) => {
     if (status !== "authenticated") return;
@@ -65,15 +58,6 @@ export function PwaSetup() {
   }, []);
 
   useEffect(() => {
-    const handler = (event: Event) => {
-      event.preventDefault();
-      setInstallEvent(event as BeforeInstallPromptEvent);
-    };
-    window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
-
-  useEffect(() => {
     if (status !== "authenticated") return;
     if (!canUseWebPush()) {
       setPushState("unsupported");
@@ -104,15 +88,6 @@ export function PwaSetup() {
     }
   }, [status]);
 
-  async function installApp() {
-    if (!installEvent) return;
-    await installEvent.prompt();
-    const choice = await installEvent.userChoice;
-    if (choice.outcome === "accepted") {
-      setInstallEvent(null);
-    }
-  }
-
   if (status !== "authenticated") return null;
 
   const showAndroidInstall = !!installEvent && !dismissedInstall && !standalone;
@@ -137,7 +112,7 @@ export function PwaSetup() {
               <X className="h-4 w-4" />
             </button>
           </div>
-          <Button className="w-full" onClick={installApp}>
+          <Button className="w-full" onClick={() => void installApp()}>
             <Download className="mr-2 h-4 w-4" />
             Ana ekrana ekle
           </Button>

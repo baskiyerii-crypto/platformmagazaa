@@ -63,7 +63,8 @@ export async function generateAdExpensesExcelBuffer(filters: AdExpenseFilters) {
       user: item.createdBy.username,
     };
     if (!isSpecialOnly) {
-      row.campaign = item.announcement?.title ?? "Kampanya dışı";
+      row.campaign =
+        item.catalogCampaign?.name ?? item.announcement?.title ?? "Kampanya dışı";
     }
     sheet.addRow(row);
   }
@@ -105,7 +106,9 @@ export async function generateAdExpensesExcelBuffer(filters: AdExpenseFilters) {
   meta.addRow({ k: "Kategori", v: filters.categoryId ?? "Tümü" });
   meta.addRow({
     k: "Kampanya filtresi",
-    v: isSpecialOnly ? "Yok (özel giderler)" : filters.announcementId ?? "Tümü",
+    v: isSpecialOnly
+      ? "Yok (özel giderler)"
+      : filters.catalogCampaignId ?? filters.announcementId ?? "Tümü",
   });
   meta.addRow({ k: "Mağaza", v: filters.storeId ?? "Tümü" });
   meta.addRow({ k: "Kayıt adedi", v: items.length });

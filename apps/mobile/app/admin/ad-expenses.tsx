@@ -19,10 +19,19 @@ type Expense = {
   store: { name: string };
   category: { name: string };
   announcement?: { id?: string; title: string } | null;
+  catalogCampaign?: { id?: string; name: string } | null;
 };
 
 function money(n: number) {
   return n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function isLinked(e: Expense) {
+  return Boolean(e.catalogCampaign?.name || e.announcement?.title);
+}
+
+function campaignName(e: Expense) {
+  return e.catalogCampaign?.name ?? e.announcement?.title ?? "";
 }
 
 export default function AdminAdExpenses() {
@@ -35,14 +44,8 @@ export default function AdminAdExpenses() {
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState<"campaign" | "general" | "all" | null>(null);
 
-  const campaignExpenses = useMemo(
-    () => expenses.filter((e) => e.announcement?.title),
-    [expenses]
-  );
-  const specialExpenses = useMemo(
-    () => expenses.filter((e) => !e.announcement?.title),
-    [expenses]
-  );
+  const campaignExpenses = useMemo(() => expenses.filter(isLinked), [expenses]);
+  const specialExpenses = useMemo(() => expenses.filter((e) => !isLinked(e)), [expenses]);
 
   async function load() {
     try {
@@ -157,7 +160,7 @@ export default function AdminAdExpenses() {
         />
         {campaignExpenses.map((e) => (
           <View key={e.id} style={{ marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: colors.border }}>
-            <Text style={styles.cardSubtitle}>{e.store.name} · {e.announcement?.title}</Text>
+            <Text style={styles.cardSubtitle}>{e.store.name} · {campaignName(e)}</Text>
             <Text style={styles.cardBody}>
               {e.title} · {e.quantity} adet · {money(e.totalPrice)} TL
             </Text>

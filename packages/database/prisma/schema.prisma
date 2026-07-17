@@ -385,6 +385,7 @@ model CatalogCampaign {
   categories CatalogCategory[]
   items      CatalogItem[]
   requests   CatalogRequest[]
+  adExpenses AdExpense[]
 
   @@index([active, sortOrder])
   @@index([mode])
@@ -522,27 +523,30 @@ model AdExpenseCategory {
 }
 
 model AdExpense {
-  id             String             @id @default(cuid())
-  storeId        String
-  store          Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  categoryId     String
-  category       AdExpenseCategory  @relation(fields: [categoryId], references: [id])
-  announcementId String?
-  announcement   Announcement?      @relation(fields: [announcementId], references: [id], onDelete: SetNull)
-  title          String
-  quantity       Int
-  totalPrice     Decimal            @db.Decimal(14, 2)
-  expenseDate    DateTime           @db.Date
-  note           String?
-  createdById    String
-  createdBy      User               @relation("AdExpenseAuthor", fields: [createdById], references: [id])
-  active         Boolean            @default(true)
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
+  id                String             @id @default(cuid())
+  storeId           String
+  store             Store              @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  categoryId        String
+  category          AdExpenseCategory  @relation(fields: [categoryId], references: [id])
+  announcementId    String?
+  announcement      Announcement?      @relation(fields: [announcementId], references: [id], onDelete: SetNull)
+  catalogCampaignId String?
+  catalogCampaign   CatalogCampaign?   @relation(fields: [catalogCampaignId], references: [id], onDelete: SetNull)
+  title             String
+  quantity          Int
+  totalPrice        Decimal            @db.Decimal(14, 2)
+  expenseDate       DateTime           @db.Date
+  note              String?
+  createdById       String
+  createdBy         User               @relation("AdExpenseAuthor", fields: [createdById], references: [id])
+  active            Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([storeId, expenseDate])
   @@index([categoryId, expenseDate])
   @@index([announcementId])
+  @@index([catalogCampaignId])
   @@index([active, expenseDate])
 }
 

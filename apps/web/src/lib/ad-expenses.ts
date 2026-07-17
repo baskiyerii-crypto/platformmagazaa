@@ -5,6 +5,7 @@ export type AdExpenseFilters = {
   storeId?: string;
   categoryId?: string;
   announcementId?: string;
+  catalogCampaignId?: string;
   dateFrom?: string;
   dateTo?: string;
   period?: "day" | "month" | "year";
@@ -59,13 +60,20 @@ export function buildAdExpenseWhere(filters: AdExpenseFilters): Prisma.AdExpense
     active: filters.active === false ? undefined : true,
     ...(filters.storeId ? { storeId: filters.storeId } : {}),
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
-    ...(filters.announcementId
-      ? { announcementId: filters.announcementId }
-      : filters.link === "campaign"
-        ? { announcementId: { not: null } }
-        : filters.link === "general"
-          ? { announcementId: null }
-          : {}),
+    ...(filters.catalogCampaignId
+      ? { catalogCampaignId: filters.catalogCampaignId }
+      : filters.announcementId
+        ? { announcementId: filters.announcementId }
+        : filters.link === "campaign"
+          ? {
+              OR: [
+                { catalogCampaignId: { not: null } },
+                { announcementId: { not: null } },
+              ],
+            }
+          : filters.link === "general"
+            ? { catalogCampaignId: null, announcementId: null }
+            : {}),
     ...(range.gte || range.lte
       ? {
           expenseDate: {
@@ -86,10 +94,27 @@ export function serializeExpense<T extends { totalPrice: Prisma.Decimal | number
   };
 }
 
+export function expenseCampaignTitle(item: {
+  catalogCampaign?: { name: string } | null;
+  announcement?: { title: string } | null;
+  catalogCampaignId?: string | null;
+  announcementId?: string | null;
+}) {
+  return item.catalogCampaign?.name ?? item.announcement?.title ?? "Kampanya dışı";
+}
+
+export function isExpenseCampaignLinked(item: {
+  catalogCampaignId?: string | null;
+  announcementId?: string | null;
+}) {
+  return Boolean(item.catalogCampaignId || item.announcementId);
+}
+
 const expenseInclude = {
   store: { select: { id: true, name: true } },
   category: { select: { id: true, name: true, code: true } },
   announcement: { select: { id: true, title: true, kind: true } },
+  catalogCampaign: { select: { id: true, name: true, mode: true } },
   createdBy: { select: { id: true, username: true } },
 } as const;
 
@@ -106,21 +131,34 @@ export async function summarizeAdExpenses(filters: AdExpenseFilters) {
   const items = await listAdExpenses(filters);
   const byCampaignStore = new Map<
     string,
-    { announcementId: string | null; announcementTitle: string; storeId: string; storeName: string; total: number; count: number }
+    {
+      catalogCampaignId: string | null;
+      announcementId: string | null;
+      campaignTitle: string;
+      announcementTitle: string;
+      storeId: string;
+      storeName: string;
+      total: number;
+      count: number;
+    }
   >();
   let grandTotal = 0;
 
   for (const item of items) {
     grandTotal += item.totalPrice;
-    const key = `${item.announcementId ?? "none"}:${item.storeId}`;
+    const campaignKey = item.catalogCampaignId ?? item.announcementId ?? "none";
+    const key = `${campaignKey}:${item.storeId}`;
+    const title = expenseCampaignTitle(item);
     const prev = byCampaignStore.get(key);
     if (prev) {
       prev.total += item.totalPrice;
       prev.count += 1;
     } else {
       byCampaignStore.set(key, {
+        catalogCampaignId: item.catalogCampaignId,
         announcementId: item.announcementId,
-        announcementTitle: item.announcement?.title ?? "Kampanya dışı",
+        campaignTitle: title,
+        announcementTitle: title,
         storeId: item.storeId,
         storeName: item.store.name,
         total: item.totalPrice,

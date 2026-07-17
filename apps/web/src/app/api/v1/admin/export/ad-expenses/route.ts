@@ -15,6 +15,7 @@ export const GET = withAuth(
       storeId: searchParams.get("storeId") || undefined,
       categoryId: searchParams.get("categoryId") || undefined,
       announcementId: searchParams.get("announcementId") || undefined,
+      catalogCampaignId: searchParams.get("catalogCampaignId") || undefined,
       dateFrom: searchParams.get("dateFrom") || undefined,
       dateTo: searchParams.get("dateTo") || undefined,
       period: (searchParams.get("period") as AdExpenseFilters["period"]) || undefined,

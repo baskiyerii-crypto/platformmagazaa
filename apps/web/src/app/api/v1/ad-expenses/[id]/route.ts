@@ -21,6 +21,13 @@ export const PATCH = withAuthParams<{ id: string }>(
       return jsonError("Yetkisiz", 403);
     }
 
+    if (parsed.data.catalogCampaignId) {
+      const campaign = await prisma.catalogCampaign.findFirst({
+        where: { id: parsed.data.catalogCampaignId, active: true },
+      });
+      if (!campaign) return jsonError("Kampanya bulunamadı veya pasif", 400);
+    }
+
     if (parsed.data.announcementId) {
       const announcement = await prisma.announcement.findFirst({
         where: {
@@ -39,13 +46,21 @@ export const PATCH = withAuthParams<{ id: string }>(
       if (!cat) return jsonError("Geçersiz kategori", 400);
     }
 
+    const clearAnnouncement =
+      parsed.data.catalogCampaignId !== undefined && parsed.data.catalogCampaignId;
+
     const updated = await prisma.adExpense.update({
       where: { id },
       data: {
         ...(parsed.data.categoryId !== undefined ? { categoryId: parsed.data.categoryId } : {}),
+        ...(parsed.data.catalogCampaignId !== undefined
+          ? { catalogCampaignId: parsed.data.catalogCampaignId || null }
+          : {}),
         ...(parsed.data.announcementId !== undefined
           ? { announcementId: parsed.data.announcementId || null }
-          : {}),
+          : clearAnnouncement
+            ? { announcementId: null }
+            : {}),
         ...(parsed.data.title !== undefined ? { title: parsed.data.title } : {}),
         ...(parsed.data.quantity !== undefined ? { quantity: parsed.data.quantity } : {}),
         ...(parsed.data.totalPrice !== undefined ? { totalPrice: parsed.data.totalPrice } : {}),

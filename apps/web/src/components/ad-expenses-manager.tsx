@@ -13,7 +13,7 @@ import { PageHeader } from "@/components/page-header";
 
 type Store = { id: string; name: string };
 type Category = { id: string; name: string; code?: string | null; active: boolean; sortOrder: number };
-type Campaign = { id: string; title: string; publishedAt: string };
+type Campaign = { id: string; title: string; name?: string };
 type Expense = {
   id: string;
   title: string;
@@ -24,13 +24,18 @@ type Expense = {
   store: { id: string; name: string };
   category: { id: string; name: string };
   announcement?: { id: string; title: string } | null;
+  catalogCampaign?: { id: string; name: string } | null;
+  catalogCampaignId?: string | null;
+  announcementId?: string | null;
   createdBy: { username: string };
 };
 type Summary = {
   grandTotal: number;
   count: number;
   byCampaignStore: Array<{
+    catalogCampaignId: string | null;
     announcementId: string | null;
+    campaignTitle: string;
     announcementTitle: string;
     storeId: string;
     storeName: string;
@@ -38,6 +43,14 @@ type Summary = {
     count: number;
   }>;
 };
+
+function expenseCampaignLabel(e: Expense) {
+  return e.catalogCampaign?.name ?? e.announcement?.title ?? null;
+}
+
+function isLinkedExpense(e: Expense) {
+  return Boolean(e.catalogCampaign?.id || e.catalogCampaignId || e.announcement?.id || e.announcementId);
+}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -59,7 +72,7 @@ export function AdminAdExpensesManager() {
 
   const [period, setPeriod] = useState<"" | "day" | "month" | "year">("month");
   const [categoryId, setCategoryId] = useState("");
-  const [announcementId, setAnnouncementId] = useState("");
+  const [catalogCampaignId, setCatalogCampaignId] = useState("");
   const [storeId, setStoreId] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -68,27 +81,33 @@ export function AdminAdExpensesManager() {
     const p = new URLSearchParams();
     if (period) p.set("period", period);
     if (categoryId) p.set("categoryId", categoryId);
-    if (announcementId) p.set("announcementId", announcementId);
+    if (catalogCampaignId) p.set("catalogCampaignId", catalogCampaignId);
     if (storeId) p.set("storeId", storeId);
     if (dateFrom) p.set("dateFrom", dateFrom);
     if (dateTo) p.set("dateTo", dateTo);
     return p.toString();
-  }, [period, categoryId, announcementId, storeId, dateFrom, dateTo]);
+  }, [period, categoryId, catalogCampaignId, storeId, dateFrom, dateTo]);
 
   const campaignExpenses = useMemo(
-    () => expenses.filter((e) => e.announcement?.id),
+    () => expenses.filter(isLinkedExpense),
     [expenses]
   );
   const specialExpenses = useMemo(
-    () => expenses.filter((e) => !e.announcement?.id),
+    () => expenses.filter((e) => !isLinkedExpense(e)),
     [expenses]
   );
   const campaignSummaryRows = useMemo(
-    () => (summary?.byCampaignStore ?? []).filter((r) => r.announcementId),
+    () =>
+      (summary?.byCampaignStore ?? []).filter(
+        (r) => r.catalogCampaignId || r.announcementId
+      ),
     [summary]
   );
   const specialSummaryRows = useMemo(
-    () => (summary?.byCampaignStore ?? []).filter((r) => !r.announcementId),
+    () =>
+      (summary?.byCampaignStore ?? []).filter(
+        (r) => !r.catalogCampaignId && !r.announcementId
+      ),
     [summary]
   );
   const campaignTotal = useMemo(
@@ -185,8 +204,8 @@ export function AdminAdExpensesManager() {
     if (dateTo) p.set("dateTo", dateTo);
     // Kampanya listesi: seçili kampanya filtresi geçerli
     // Özel gider: kampanya ID gönderilmez (çakışmasın)
-    if (link === "campaign" && announcementId) {
-      p.set("announcementId", announcementId);
+    if (link === "campaign" && catalogCampaignId) {
+      p.set("catalogCampaignId", catalogCampaignId);
     }
     if (link) p.set("link", link);
     p.set("format", "excel");
@@ -215,7 +234,7 @@ export function AdminAdExpensesManager() {
                 <td className="px-3 py-2">{new Date(e.expenseDate).toLocaleDateString("tr-TR")}</td>
                 <td className="px-3 py-2">{e.store.name}</td>
                 <td className="px-3 py-2">{e.category.name}</td>
-                {showCampaign ? <td className="px-3 py-2">{e.announcement?.title ?? "—"}</td> : null}
+                {showCampaign ? <td className="px-3 py-2">{expenseCampaignLabel(e) ?? "—"}</td> : null}
                 <td className="px-3 py-2">{e.title}</td>
                 <td className="px-3 py-2">{e.quantity}</td>
                 <td className="px-3 py-2 font-medium">{formatMoney(e.totalPrice)} TL</td>
@@ -306,11 +325,15 @@ export function AdminAdExpensesManager() {
             </select>
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Kampanya (kampanya listesi için)</Label>
-            <select className="field-select" value={announcementId} onChange={(e) => setAnnouncementId(e.target.value)}>
+            <Label className="text-xs">Kampanya (Kampanya Yönetimi)</Label>
+            <select
+              className="field-select"
+              value={catalogCampaignId}
+              onChange={(e) => setCatalogCampaignId(e.target.value)}
+            >
               <option value="">Tüm kampanyalar</option>
               {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>{c.title}</option>
+                <option key={c.id} value={c.id}>{c.title || c.name}</option>
               ))}
             </select>
           </div>
@@ -354,8 +377,11 @@ export function AdminAdExpensesManager() {
                 </thead>
                 <tbody>
                   {campaignSummaryRows.map((row) => (
-                    <tr key={`${row.announcementId}-${row.storeId}`} className="border-t">
-                      <td className="px-3 py-2">{row.announcementTitle}</td>
+                    <tr
+                      key={`${row.catalogCampaignId ?? row.announcementId}-${row.storeId}`}
+                      className="border-t"
+                    >
+                      <td className="px-3 py-2">{row.campaignTitle || row.announcementTitle}</td>
                       <td className="px-3 py-2">{row.storeName}</td>
                       <td className="px-3 py-2">{row.count}</td>
                       <td className="px-3 py-2 font-medium">{formatMoney(row.total)} TL</td>
@@ -459,7 +485,7 @@ export function AdminAdExpensesManager() {
 type DraftLine = {
   key: string;
   categoryId: string;
-  announcementId: string;
+  catalogCampaignId: string;
   title: string;
   quantity: string;
   totalPrice: string;
@@ -471,7 +497,7 @@ function emptyDraft(): DraftLine {
   return {
     key: Math.random().toString(36).slice(2),
     categoryId: "",
-    announcementId: "",
+    catalogCampaignId: "",
     title: "",
     quantity: "1",
     totalPrice: "",
@@ -530,7 +556,7 @@ export function StoreAdExpensesManager() {
     try {
       const items = drafts.map((d) => ({
         categoryId: d.categoryId,
-        announcementId: d.announcementId || null,
+        catalogCampaignId: d.catalogCampaignId || null,
         title: d.title.trim(),
         quantity: Number(d.quantity),
         totalPrice: Number(d.totalPrice),
@@ -564,13 +590,18 @@ export function StoreAdExpensesManager() {
     <div className="space-y-6">
       <PageHeader
         title="Reklam Giderleri"
-        subtitle="Kampanya veya bağımsız reklam gideri ekleyin — satır satır Ekle, sonra Tamamla"
+        subtitle="Kampanyalar Kampanya Yönetimi’nden gelir — seçip gider ekleyin veya kampanya dışı bırakın"
       />
       {error ? <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
 
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Yeni Gider Satırları</CardTitle>
+          {campaigns.length === 0 ? (
+            <p className="text-xs text-muted-foreground">
+              Henüz aktif kampanya yok. Yönetici Kampanya Yönetimi’nden kampanya eklemeli.
+            </p>
+          ) : null}
         </CardHeader>
         <CardContent>
           <form onSubmit={submit} className="space-y-4">
@@ -608,12 +639,12 @@ export function StoreAdExpensesManager() {
                     <Label className="text-xs">Kampanya (opsiyonel)</Label>
                     <select
                       className="field-select"
-                      value={d.announcementId}
-                      onChange={(e) => updateDraft(d.key, { announcementId: e.target.value })}
+                      value={d.catalogCampaignId}
+                      onChange={(e) => updateDraft(d.key, { catalogCampaignId: e.target.value })}
                     >
                       <option value="">Kampanya dışı</option>
                       {campaigns.map((c) => (
-                        <option key={c.id} value={c.id}>{c.title}</option>
+                        <option key={c.id} value={c.id}>{c.title || c.name}</option>
                       ))}
                     </select>
                   </div>
@@ -687,7 +718,10 @@ export function StoreAdExpensesManager() {
                 <p className="font-medium">{e.title}</p>
                 <p className="text-muted-foreground">
                   {e.category.name}
-                  {e.announcement ? ` · ${e.announcement.title}` : " · Kampanya dışı"} · {e.quantity} adet ·{" "}
+                  {expenseCampaignLabel(e)
+                    ? ` · ${expenseCampaignLabel(e)}`
+                    : " · Kampanya dışı"}{" "}
+                  · {e.quantity} adet ·{" "}
                   {new Date(e.expenseDate).toLocaleDateString("tr-TR")}
                 </p>
               </div>

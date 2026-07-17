@@ -15,6 +15,7 @@ function filtersFromSearch(searchParams: URLSearchParams, forceStoreId?: string 
     storeId: forceStoreId || searchParams.get("storeId") || undefined,
     categoryId: searchParams.get("categoryId") || undefined,
     announcementId: searchParams.get("announcementId") || undefined,
+    catalogCampaignId: searchParams.get("catalogCampaignId") || undefined,
     dateFrom: searchParams.get("dateFrom") || undefined,
     dateTo: searchParams.get("dateTo") || undefined,
     period: (searchParams.get("period") as AdExpenseFilters["period"]) || undefined,
@@ -39,6 +40,18 @@ function dbError(e: unknown) {
   return jsonError(msg || "Sunucu hatası", 500);
 }
 
+async function assertCatalogCampaign(catalogCampaignId: string | null | undefined) {
+  if (!catalogCampaignId) return null;
+  const campaign = await prisma.catalogCampaign.findFirst({
+    where: { id: catalogCampaignId, active: true },
+  });
+  if (!campaign) {
+    throw new Error("Kampanya bulunamadı veya pasif");
+  }
+  return campaign;
+}
+
+/** Legacy: keep validating announcement links on old rows / rare dual posts */
 async function assertCampaignAnnouncement(announcementId: string | null | undefined, storeId: string) {
   if (!announcementId) return null;
   const announcement = await prisma.announcement.findFirst({
@@ -74,24 +87,30 @@ export const GET = withAuth(async (request, auth) => {
     }
 
     if (searchParams.get("campaigns") === "1") {
-      const storeId = staff ? searchParams.get("storeId") : auth.storeId;
-      const campaigns = await prisma.announcement.findMany({
-        where: {
-          active: true,
-          kind: "KAMPANYA",
-          ...(storeId
-            ? {
-                OR: [
-                  { audience: "ALL_STORES" },
-                  { audience: "SELECTED_STORES", storeIds: { has: storeId } },
-                ],
-              }
-            : {}),
+      const campaigns = await prisma.catalogCampaign.findMany({
+        where: { active: true },
+        select: {
+          id: true,
+          name: true,
+          mode: true,
+          startsAt: true,
+          endsAt: true,
+          description: true,
         },
-        select: { id: true, title: true, publishedAt: true },
-        orderBy: { publishedAt: "desc" },
+        orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       });
-      return NextResponse.json(campaigns);
+      // UI expects { id, title } — map name → title for dropdown compatibility
+      return NextResponse.json(
+        campaigns.map((c) => ({
+          id: c.id,
+          title: c.name,
+          name: c.name,
+          mode: c.mode,
+          startsAt: c.startsAt,
+          endsAt: c.endsAt,
+          description: c.description,
+        }))
+      );
     }
 
     const items = await listAdExpenses(filters);
@@ -132,7 +151,10 @@ export const POST = withAuth(async (request, auth) => {
     }
 
     for (const line of parsed.data.items) {
-      await assertCampaignAnnouncement(line.announcementId, storeId);
+      await assertCatalogCampaign(line.catalogCampaignId);
+      if (line.announcementId) {
+        await assertCampaignAnnouncement(line.announcementId, storeId);
+      }
     }
 
     const created = await prisma.$transaction(async (tx) => {
@@ -142,7 +164,9 @@ export const POST = withAuth(async (request, auth) => {
           data: {
             storeId,
             categoryId: line.categoryId,
-            announcementId: line.announcementId || null,
+            catalogCampaignId: line.catalogCampaignId || null,
+            // New entries use catalog campaigns; do not mix unless explicitly sent
+            announcementId: line.catalogCampaignId ? null : line.announcementId || null,
             title: line.title,
             quantity: line.quantity,
             totalPrice: line.totalPrice,
@@ -159,7 +183,10 @@ export const POST = withAuth(async (request, auth) => {
 
     return NextResponse.json(created.map(serializeExpense), { status: 201 });
   } catch (e) {
-    if (e instanceof Error && e.message.includes("Kampanya duyurusu")) {
+    if (
+      e instanceof Error &&
+      (e.message.includes("Kampanya duyurusu") || e.message.includes("Kampanya bulunamadı"))
+    ) {
       return jsonError(e.message, 400);
     }
     return dbError(e);
