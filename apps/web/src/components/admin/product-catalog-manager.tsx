@@ -52,7 +52,10 @@ export function ProductCatalogManager() {
       formData.append("type", "FIXED");
       formData.append("description", description);
       if (file) formData.append("file", file);
-      const res = await fetch("/api/v1/admin/catalog", { method: "POST", body: formData });
+      const res = await fetch("/api/v1/admin/catalog?scope=product", {
+        method: "POST",
+        body: formData,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Ürün eklenemedi");
       setName("");
@@ -78,7 +81,8 @@ export function ProductCatalogManager() {
       <div>
         <h1 className="text-3xl font-bold">Ürün Kataloğu</h1>
         <p className="text-muted-foreground">
-          Kampanyadan bağımsız, sürekli talep edilebilen ürünler {isAdmin ? "" : "(salt okunur)"}
+          Sadece ürün kataloğu burada — kampanya yönetiminde görünmez{" "}
+          {isAdmin ? "" : "(salt okunur)"}
         </p>
       </div>
 

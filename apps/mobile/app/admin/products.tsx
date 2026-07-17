@@ -23,7 +23,11 @@ export default function AdminProducts() {
 
   async function createProduct() {
     try {
-      await api.post("/api/v1/admin/catalog", { name, code, type: "FIXED" });
+      await api.post("/api/v1/admin/catalog?scope=product", {
+        name,
+        code,
+        type: "FIXED",
+      });
       setName("");
       setCode("");
       await load();

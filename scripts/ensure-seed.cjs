@@ -129,37 +129,37 @@ async function seedDefinitionsAndStore() {
 
   await ensureUser("kadikoy", "magaza123", "STORE", store.id);
 
-  // Default permanent campaign + category for fixed prints / catalog
-  let campaign = await prisma.catalogCampaign.findFirst({
+  // Product catalog items are NEVER tied to a campaign.
+  // Old seed used to dump them onto "Genel Katalog" — detach those leftovers.
+  const genelDump = await prisma.catalogCampaign.findFirst({
     where: { name: "Genel Katalog" },
     orderBy: { createdAt: "asc" },
   });
-  if (!campaign) {
-    campaign = await prisma.catalogCampaign.create({
-      data: {
-        name: "Genel Katalog",
-        description: "Kalıcı sabit baskı / ürün kataloğu",
-        mode: "PERMANENT",
-        active: true,
-        sortOrder: 0,
-      },
+  if (genelDump) {
+    const detached = await prisma.catalogItem.updateMany({
+      where: { campaignId: genelDump.id },
+      data: { campaignId: null, categoryId: null },
     });
-    console.log("[ensure-seed] default catalog campaign created");
-  }
-
-  let category = await prisma.catalogCategory.findFirst({
-    where: { campaignId: campaign.id, name: "Genel" },
-  });
-  if (!category) {
-    category = await prisma.catalogCategory.create({
-      data: {
-        campaignId: campaign.id,
-        name: "Genel",
-        sortOrder: 0,
-        active: true,
-      },
+    if (detached.count > 0) {
+      console.log(
+        `[ensure-seed] detached ${detached.count} product item(s) from Genel Katalog`
+      );
+    }
+    const leftover = await prisma.catalogItem.count({
+      where: { campaignId: genelDump.id },
     });
-    console.log("[ensure-seed] default catalog category created");
+    // Keep the row only if something unexpected remains; otherwise hide the dump campaign.
+    await prisma.catalogCampaign.update({
+      where: { id: genelDump.id },
+      data: { active: false },
+    });
+    if (leftover === 0) {
+      console.log("[ensure-seed] deactivated empty Genel Katalog dump campaign");
+    } else {
+      console.log(
+        `[ensure-seed] deactivated Genel Katalog (${leftover} leftover inactive link(s))`
+      );
+    }
   }
 
   const catalogItems = [
@@ -198,7 +198,12 @@ async function seedDefinitionsAndStore() {
         campaignId: null,
         categoryId: null,
       },
-      create: item,
+      create: {
+        ...item,
+        campaignId: null,
+        categoryId: null,
+        active: true,
+      },
     });
   }
 }

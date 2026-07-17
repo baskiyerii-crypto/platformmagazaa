@@ -17,14 +17,16 @@ type DashboardData = {
 
 const ADMIN_LINKS = [
   { href: "/admin/inventory", label: "Envanter", desc: "Tüm mağaza kayıtları" },
-  { href: "/admin/catalog", label: "Ürün Kataloğu", desc: "Katalog yönetimi" },
+  { href: "/admin/products", label: "Ürün Kataloğu", desc: "Kampanyadan bağımsız ürünler" },
+  { href: "/admin/catalog", label: "Kampanya Yönetimi", desc: "Kampanya ve kampanya ürünleri" },
   { href: "/admin/stores", label: "Mağazalar", desc: "Mağaza ve kullanıcılar" },
   { href: "/admin/announcements", label: "Duyurular", desc: "Yayınla ve takip et" },
   { href: "/admin/ad-expenses", label: "Reklam Giderleri", desc: "Kampanya ve gider raporları" },
   { href: "/admin/media", label: "Görsel Kütüphanesi", desc: "Yüklenen görseller" },
   { href: "/admin/support", label: "Destek", desc: "Mağaza destek talepleri" },
   { href: "/admin/definitions", label: "Tanımlar", desc: "Alt türler ve yerleşimler" },
-  { href: "/admin/requests", label: "Talepler", desc: "Değişim talepleri" },
+  { href: "/admin/requests", label: "Ürün / Değişim Talepleri", desc: "Ürün ve görsel talepleri" },
+  { href: "/admin/campaign-requests", label: "Kampanya Talepleri", desc: "Kampanya adet talepleri" },
   { href: "/admin/export", label: "Excel Export", desc: "Veri indir" },
   { href: "/notifications", label: "Bildirimler", desc: "Push ve uygulama içi" },
 ];

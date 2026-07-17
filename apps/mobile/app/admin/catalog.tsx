@@ -72,7 +72,7 @@ export default function AdminCatalog() {
   async function createItem() {
     if (!isAdmin || !campaignId || !categoryId) return Alert.alert("Yetki yok");
     try {
-      await api.post("/api/v1/admin/catalog", {
+      await api.post("/api/v1/admin/catalog?scope=campaign", {
         name,
         code,
         type,

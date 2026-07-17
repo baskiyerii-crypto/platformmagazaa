@@ -77,10 +77,12 @@ export function CatalogManager() {
     const res = await fetch("/api/v1/admin/catalog/campaigns?all=1");
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Kampanyalar yüklenemedi");
-    setCampaigns(data);
-    if (data[0] && !selectedCampaignId) setSelectedCampaignId(data[0].id);
-    if (selectedCampaignId && !data.find((c: Campaign) => c.id === selectedCampaignId) && data[0]) {
-      setSelectedCampaignId(data[0].id);
+    // Hide inactive empty dump campaigns (e.g. old "Genel Katalog")
+    const visible = (data as Campaign[]).filter((c) => c.active || c.items.length > 0);
+    setCampaigns(visible);
+    if (visible[0] && !selectedCampaignId) setSelectedCampaignId(visible[0].id);
+    if (selectedCampaignId && !visible.find((c) => c.id === selectedCampaignId) && visible[0]) {
+      setSelectedCampaignId(visible[0].id);
     }
   }
 
@@ -164,7 +166,10 @@ export function CatalogManager() {
       formData.append("categoryId", itemCategoryId);
       formData.append("description", itemDescription);
       if (itemFile) formData.append("file", itemFile);
-      const res = await fetch("/api/v1/admin/catalog", { method: "POST", body: formData });
+      const res = await fetch("/api/v1/admin/catalog?scope=campaign", {
+        method: "POST",
+        body: formData,
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Ürün eklenemedi");
       setItemName("");
@@ -200,9 +205,9 @@ export function CatalogManager() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Kampanya / Sabit Baskılar</h1>
+        <h1 className="text-3xl font-bold">Kampanya Yönetimi</h1>
         <p className="text-muted-foreground">
-          Yönetici kampanya ve kategorileri tanımlar; mağazalar adet bildirir{" "}
+          Sadece kampanya ürünleri burada. Ürün kataloğu ayrı paneldedir{" "}
           {isAdmin ? "" : "(salt okunur)"}
         </p>
       </div>

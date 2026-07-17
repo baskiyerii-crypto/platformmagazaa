@@ -30,6 +30,8 @@ export const GET = withAuth(async (request) => {
 
 export const POST = withAuth(
   async (request, auth) => {
+    const { searchParams } = new URL(request.url);
+    const scope = searchParams.get("scope") === "campaign" ? "campaign" : "product";
     const contentType = request.headers.get("content-type") ?? "";
     let data: Record<string, unknown> = {};
     let referenceImageUrl: string | null = null;
@@ -61,6 +63,12 @@ export const POST = withAuth(
       referenceImageUrl = body.referenceImageUrl ?? null;
     }
 
+    // Product catalog and campaign catalog are strictly separate.
+    if (scope === "product") {
+      data.campaignId = null;
+      data.categoryId = null;
+    }
+
     const parsed = createCatalogItemSchema.safeParse({
       ...data,
       referenceImageUrl,
@@ -69,9 +77,9 @@ export const POST = withAuth(
       return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
     }
 
-    if (parsed.data.campaignId || parsed.data.categoryId) {
+    if (scope === "campaign") {
       if (!parsed.data.campaignId || !parsed.data.categoryId) {
-        return jsonError("Kampanya ürünü için kampanya ve kategori birlikte seçilmeli", 400);
+        return jsonError("Kampanya ürünü için kampanya ve kategori zorunlu", 400);
       }
       const [campaign, category] = await Promise.all([
         prisma.catalogCampaign.findUnique({ where: { id: parsed.data.campaignId } }),
@@ -90,7 +98,17 @@ export const POST = withAuth(
     if (existing) return jsonError("Bu kod zaten kullanımda", 400);
 
     const item = await prisma.catalogItem.create({
-      data: parsed.data,
+      data: {
+        name: parsed.data.name,
+        code: parsed.data.code,
+        type: parsed.data.type,
+        description: parsed.data.description ?? null,
+        referenceImageUrl: parsed.data.referenceImageUrl ?? null,
+        active: parsed.data.active ?? true,
+        sortOrder: parsed.data.sortOrder ?? 0,
+        campaignId: scope === "product" ? null : parsed.data.campaignId!,
+        categoryId: scope === "product" ? null : parsed.data.categoryId!,
+      },
       include: catalogItemInclude,
     });
     return NextResponse.json(item, { status: 201 });

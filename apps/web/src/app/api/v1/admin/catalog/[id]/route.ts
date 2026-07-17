@@ -21,6 +21,8 @@ export const GET = withAuthParams<{ id: string }>(
 export const PATCH = withAuthParams<{ id: string }>(
   async (request, auth, context) => {
     const { id } = await context.params;
+    const { searchParams } = new URL(request.url);
+    const scope = searchParams.get("scope") === "campaign" ? "campaign" : "product";
     const contentType = request.headers.get("content-type") ?? "";
     let data: Record<string, unknown> = {};
 
@@ -47,12 +49,18 @@ export const PATCH = withAuthParams<{ id: string }>(
       data = await request.json();
     }
 
+    // Product updates must stay outside campaigns.
+    if (scope === "product") {
+      data.campaignId = null;
+      data.categoryId = null;
+    }
+
     const parsed = updateCatalogItemSchema.safeParse(data);
     if (!parsed.success) {
       return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
     }
 
-    if (parsed.data.campaignId || parsed.data.categoryId) {
+    if (scope === "campaign" && (parsed.data.campaignId || parsed.data.categoryId)) {
       const existing = await prisma.catalogItem.findUnique({ where: { id } });
       if (!existing) return jsonError("Ürün bulunamadı", 404);
       const campaignId = parsed.data.campaignId ?? existing.campaignId;
@@ -67,7 +75,10 @@ export const PATCH = withAuthParams<{ id: string }>(
 
     const item = await prisma.catalogItem.update({
       where: { id },
-      data: parsed.data,
+      data: {
+        ...parsed.data,
+        ...(scope === "product" ? { campaignId: null, categoryId: null } : {}),
+      },
       include: catalogItemInclude,
     });
     return NextResponse.json(item);
