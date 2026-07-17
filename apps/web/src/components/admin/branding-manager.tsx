@@ -75,7 +75,9 @@ export function BrandingManager() {
     }
   }
 
-  const currentIcon = data?.logoUrl ?? "/api/v1/branding/icon/192";
+  // Always render via icon API so disk-backed logo + defaults both work with cache-bust
+  const currentIcon = `/api/v1/branding/icon/192`;
+  const iconSrc = `${currentIcon}?t=${encodeURIComponent(data?.updatedAt ?? "default")}`;
 
   return (
     <div className="space-y-8">
@@ -102,7 +104,7 @@ export function BrandingManager() {
             <div className="flex items-center gap-4">
               <div className="relative h-24 w-24 overflow-hidden rounded-2xl border bg-muted">
                 <Image
-                  src={`${currentIcon}?t=${data?.updatedAt ?? ""}`}
+                  src={iconSrc}
                   alt="Uygulama logosu"
                   fill
                   className="object-cover"
@@ -113,6 +115,11 @@ export function BrandingManager() {
                 <div>Ana ekran ikonu</div>
                 <div>Bildirim ikonu</div>
                 <div>PWA başlık görseli</div>
+                {data?.logoUrl ? (
+                  <div className="mt-1 text-xs text-emerald-700">Özel logo yüklü</div>
+                ) : (
+                  <div className="mt-1 text-xs">Varsayılan ikon (logo yüklenmemiş)</div>
+                )}
               </div>
             </div>
             {data?.logoUrl && data.fileExists === false && (

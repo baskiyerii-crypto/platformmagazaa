@@ -19,6 +19,7 @@ export const POST = withAuth(
     }
 
     try {
+      await saveAppLogo(file, auth.userId);
       const status = await getBrandingLogoStatus();
       return NextResponse.json({ success: true, ...status });
     } catch (error) {
