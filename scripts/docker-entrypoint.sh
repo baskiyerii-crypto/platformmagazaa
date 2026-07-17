@@ -9,7 +9,8 @@ if [ -n "$DATABASE_URL" ] && [ -f /app/prisma/schema.prisma ]; then
   if prisma db push --schema=/app/prisma/schema.prisma --skip-generate; then
     echo "[entrypoint] ensure-seed..."
     if [ -f /seed/ensure-seed.cjs ]; then
-      # Use isolated seed node_modules (do not touch standalone /app/node_modules)
+      # Safe by default: does not recreate deleted Kadıköy / Demir Baş.
+      # SKIP_SEED=1 | FORCE_SEED=1 | FORCE_SEED_PASSWORDS=1 supported.
       NODE_PATH=/seed/node_modules node /seed/ensure-seed.cjs \
         || echo "[entrypoint] WARNING: ensure-seed failed (app will still start)"
     else

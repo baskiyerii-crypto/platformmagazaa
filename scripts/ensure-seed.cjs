@@ -1,29 +1,50 @@
 /**
- * Production bootstrap: upserts seed users and always resets their passwords
- * to the documented defaults so admin login works after DB wipe / redeploy.
+ * Production bootstrap seed.
+ *
+ * Default (every deploy): only ensure missing ADMIN/MANAGER logins exist.
+ * Does NOT recreate deleted demo store / catalog products / reset passwords.
+ *
+ * Env:
+ *   SKIP_SEED=1              — skip entirely
+ *   FORCE_SEED=1             — first-time style: demos + structural defs + optional password reset
+ *   FORCE_SEED_PASSWORDS=1   — reset known admin passwords to defaults (use carefully)
  */
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
 
 const prisma = new PrismaClient();
 
-async function ensureUser(username, password, role, storeId = null) {
-  const passwordHash = await bcrypt.hash(password, 12);
+const skip = /^(1|true|yes)$/i.test(String(process.env.SKIP_SEED || ""));
+const forceSeed = /^(1|true|yes)$/i.test(String(process.env.FORCE_SEED || ""));
+const forcePasswords = /^(1|true|yes)$/i.test(
+  String(process.env.FORCE_SEED_PASSWORDS || "")
+);
+
+async function ensureUser(username, password, role, storeId = null, { resetPassword = false } = {}) {
   const existing = await prisma.user.findUnique({ where: { username } });
 
   if (existing) {
+    if (!resetPassword && storeId == null) {
+      return existing;
+    }
+    const data = {
+      role,
+      ...(storeId != null ? { storeId } : {}),
+    };
+    if (resetPassword) {
+      data.passwordHash = await bcrypt.hash(password, 12);
+    }
     const user = await prisma.user.update({
       where: { username },
-      data: {
-        passwordHash,
-        role,
-        ...(storeId != null ? { storeId } : {}),
-      },
+      data,
     });
-    console.log(`[ensure-seed] user password reset: ${username} (${role})`);
+    if (resetPassword) {
+      console.log(`[ensure-seed] user password reset: ${username} (${role})`);
+    }
     return user;
   }
 
+  const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
     data: { username, passwordHash, role, storeId },
   });
@@ -31,33 +52,14 @@ async function ensureUser(username, password, role, storeId = null) {
   return user;
 }
 
-async function main() {
-  if (!process.env.DATABASE_URL) {
-    console.warn("[ensure-seed] DATABASE_URL missing — skipped");
-    return;
-  }
-
-  console.log("[ensure-seed] starting...");
-
-  // Admin users FIRST — must succeed even if store schema is behind
-  await ensureUser("admin", "admin123", "ADMIN");
-  await ensureUser("yusuf", "yusuf634152K", "ADMIN");
-  await ensureUser("mudur", "mudur634152K", "MANAGER");
-  console.log("[ensure-seed] admin users ready — login: yusuf / yusuf634152K");
-
-  try {
-    await seedDefinitionsAndStore();
-  } catch (e) {
-    console.error(
-      "[ensure-seed] definitions/store skipped (run prisma db push):",
-      e?.message || e
-    );
-  }
-
-  console.log("[ensure-seed] done");
+async function ensureAdmins({ resetPassword }) {
+  await ensureUser("admin", "admin123", "ADMIN", null, { resetPassword });
+  await ensureUser("yusuf", "yusuf634152K", "ADMIN", null, { resetPassword });
+  await ensureUser("mudur", "mudur634152K", "MANAGER", null, { resetPassword });
+  console.log("[ensure-seed] admin users ensured (missing-only unless password reset)");
 }
 
-async function seedDefinitionsAndStore() {
+async function seedStructuralDefinitions() {
   const avmCategory = await prisma.areaCategory.upsert({
     where: { type: "AVM" },
     update: {},
@@ -91,11 +93,14 @@ async function seedDefinitionsAndStore() {
   ];
 
   for (const st of subTypes) {
-    await prisma.areaSubType.upsert({
+    // create-only: do not revive admin-deleted subtypes
+    const existing = await prisma.areaSubType.findUnique({
       where: { categoryId_code: { categoryId: st.categoryId, code: st.code } },
-      update: { name: st.name, sortOrder: st.sortOrder },
-      create: st,
     });
+    if (!existing) {
+      await prisma.areaSubType.create({ data: st });
+      console.log(`[ensure-seed] subtype created: ${st.code}`);
+    }
   }
 
   const placements = [
@@ -108,16 +113,18 @@ async function seedDefinitionsAndStore() {
   ];
 
   for (const p of placements) {
-    await prisma.placementOption.upsert({
-      where: { code: p.code },
-      update: { name: p.name, sortOrder: p.sortOrder },
-      create: p,
-    });
+    const existing = await prisma.placementOption.findUnique({ where: { code: p.code } });
+    if (!existing) {
+      await prisma.placementOption.create({ data: p });
+      console.log(`[ensure-seed] placement created: ${p.code}`);
+    }
   }
+}
 
+async function seedDemoStoreAndCatalog() {
   const store = await prisma.store.upsert({
     where: { id: "seed-store-kadikoy" },
-    update: { storeNumber: "001", name: "Kadıköy Mağazası" },
+    update: {},
     create: {
       id: "seed-store-kadikoy",
       name: "Kadıköy Mağazası",
@@ -126,41 +133,9 @@ async function seedDefinitionsAndStore() {
       active: true,
     },
   });
+  console.log("[ensure-seed] demo store ensured: Kadıköy");
 
-  await ensureUser("kadikoy", "magaza123", "STORE", store.id);
-
-  // Product catalog items are NEVER tied to a campaign.
-  // Old seed used to dump them onto "Genel Katalog" — detach those leftovers.
-  const genelDump = await prisma.catalogCampaign.findFirst({
-    where: { name: "Genel Katalog" },
-    orderBy: { createdAt: "asc" },
-  });
-  if (genelDump) {
-    const detached = await prisma.catalogItem.updateMany({
-      where: { campaignId: genelDump.id },
-      data: { campaignId: null, categoryId: null },
-    });
-    if (detached.count > 0) {
-      console.log(
-        `[ensure-seed] detached ${detached.count} product item(s) from Genel Katalog`
-      );
-    }
-    const leftover = await prisma.catalogItem.count({
-      where: { campaignId: genelDump.id },
-    });
-    // Keep the row only if something unexpected remains; otherwise hide the dump campaign.
-    await prisma.catalogCampaign.update({
-      where: { id: genelDump.id },
-      data: { active: false },
-    });
-    if (leftover === 0) {
-      console.log("[ensure-seed] deactivated empty Genel Katalog dump campaign");
-    } else {
-      console.log(
-        `[ensure-seed] deactivated Genel Katalog (${leftover} leftover inactive link(s))`
-      );
-    }
-  }
+  await ensureUser("kadikoy", "magaza123", "STORE", store.id, { resetPassword: true });
 
   const catalogItems = [
     {
@@ -187,31 +162,95 @@ async function seedDefinitionsAndStore() {
   ];
 
   for (const item of catalogItems) {
-    await prisma.catalogItem.upsert({
-      where: { code: item.code },
-      update: {
-        name: item.name,
-        type: item.type,
-        description: item.description,
-        sortOrder: item.sortOrder,
-        active: true,
-        campaignId: null,
-        categoryId: null,
-      },
-      create: {
-        ...item,
-        campaignId: null,
-        categoryId: null,
-        active: true,
-      },
-    });
+    const existing = await prisma.catalogItem.findUnique({ where: { code: item.code } });
+    if (!existing) {
+      await prisma.catalogItem.create({
+        data: {
+          ...item,
+          campaignId: null,
+          categoryId: null,
+          active: true,
+        },
+      });
+      console.log(`[ensure-seed] catalog item created: ${item.code}`);
+    }
   }
+}
+
+async function cleanupLegacyGenelKatalogDump() {
+  const genelDump = await prisma.catalogCampaign.findFirst({
+    where: { name: "Genel Katalog" },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!genelDump) return;
+
+  const detached = await prisma.catalogItem.updateMany({
+    where: { campaignId: genelDump.id },
+    data: { campaignId: null, categoryId: null },
+  });
+  if (detached.count > 0) {
+    console.log(
+      `[ensure-seed] detached ${detached.count} product item(s) from Genel Katalog`
+    );
+  }
+  await prisma.catalogCampaign.update({
+    where: { id: genelDump.id },
+    data: { active: false },
+  });
+}
+
+async function main() {
+  if (!process.env.DATABASE_URL) {
+    console.warn("[ensure-seed] DATABASE_URL missing — skipped");
+    return;
+  }
+
+  if (skip) {
+    console.log("[ensure-seed] SKIP_SEED=1 — skipped");
+    return;
+  }
+
+  console.log("[ensure-seed] starting...");
+
+  const userCount = await prisma.user.count().catch(() => 0);
+  const isEmpty = userCount === 0;
+  const bootstrap = forceSeed || isEmpty;
+  const resetPassword = forcePasswords || isEmpty;
+
+  if (bootstrap) {
+    console.log(
+      `[ensure-seed] bootstrap mode (${isEmpty ? "empty DB" : "FORCE_SEED=1"})`
+    );
+  } else {
+    console.log(
+      "[ensure-seed] maintenance mode — will not recreate Kadıköy / Demir Baş / demo data"
+    );
+  }
+
+  await ensureAdmins({ resetPassword });
+
+  try {
+    // Structural defs: create-only missing rows (safe on every deploy)
+    await seedStructuralDefinitions();
+    await cleanupLegacyGenelKatalogDump();
+
+    // Demo store + catalog ONLY on empty DB or FORCE_SEED
+    if (bootstrap) {
+      await seedDemoStoreAndCatalog();
+    }
+  } catch (e) {
+    console.error(
+      "[ensure-seed] definitions/store skipped (run prisma db push):",
+      e?.message || e
+    );
+  }
+
+  console.log("[ensure-seed] done");
 }
 
 main()
   .catch((e) => {
     console.error("[ensure-seed] FAILED:", e?.message || e);
-    // Do not crash the app if seed fails — schema push may still allow login later
     process.exitCode = 0;
   })
   .finally(() => prisma.$disconnect());
