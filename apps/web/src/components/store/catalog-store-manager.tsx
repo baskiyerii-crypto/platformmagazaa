@@ -37,7 +37,6 @@ export function StoreCatalogManager() {
   const [selectedId, setSelectedId] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [note, setNote] = useState("");
-  const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
 
   const selected = items.find((i) => i.id === selectedId);
@@ -66,7 +65,6 @@ export function StoreCatalogManager() {
     formData.append("catalogItemId", selectedId);
     if (selected?.type === "VARIABLE") formData.append("quantity", quantity);
     if (note) formData.append("note", note);
-    if (file) formData.append("file", file);
     const res = await fetch("/api/v1/catalog-requests", { method: "POST", body: formData });
     if (!res.ok) {
       const err = await res.json();
@@ -74,7 +72,6 @@ export function StoreCatalogManager() {
     } else {
       setNote("");
       setQuantity("1");
-      setFile(null);
       await load();
     }
     setLoading(false);
@@ -122,10 +119,6 @@ export function StoreCatalogManager() {
               <div className="space-y-2">
                 <Label>Not (opsiyonel)</Label>
                 <Input value={note} onChange={(e) => setNote(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Ek Görsel (opsiyonel)</Label>
-                <Input type="file" accept="image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
               </div>
               <Button type="submit" disabled={loading}>Talep Oluştur</Button>
             </form>

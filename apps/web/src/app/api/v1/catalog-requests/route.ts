@@ -81,17 +81,18 @@ export const POST = withAuth(async (request, auth) => {
       note: formData.get("note")?.toString() || null,
     };
     const file = formData.get("file");
-    if (file instanceof File && file.size > 0) {
+    if (auth.role !== "STORE" && file instanceof File && file.size > 0) {
       storeImageUrl = await saveUploadedFile(file, {
         category: "CATALOG_REQUEST",
-        storeId: auth.role === "STORE" ? auth.storeId : storeIdParam,
+        storeId: storeIdParam,
         createdById: auth.userId,
       });
     }
   } else {
     body = await request.json();
     storeIdParam = (body.storeId as string) ?? null;
-    storeImageUrl = (body.storeImageUrl as string) ?? null;
+    storeImageUrl =
+      auth.role === "STORE" ? null : (body.storeImageUrl as string) ?? null;
   }
 
   const storeId = resolveStoreId(auth, storeIdParam);

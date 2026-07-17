@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Text, Alert, StyleSheet, Pressable, View, FlatList, ActivityIndicator } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 import { Screen, Card, InputField, PrimaryButton, StatusPill, styles } from "@/components/ui";
 import { CachedImage } from "@/components/cached-image";
 import { colors, radius, spacing } from "@/components/theme";
@@ -100,45 +99,6 @@ export default function StoreCatalog() {
     Alert.alert("Başarılı", "Ürün talebi oluşturuldu");
   }
 
-  async function submitWithPhoto() {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert("İzin gerekli", "Kamera izni verilmeli");
-      return;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true });
-    if (result.canceled || !result.assets[0]) return;
-
-    const formData = new FormData();
-    formData.append("catalogItemId", selectedId);
-    if (selected?.type === "VARIABLE") formData.append("quantity", quantity);
-    if (note) formData.append("note", note);
-    formData.append("file", {
-      uri: result.assets[0].uri,
-      name: "ek.jpg",
-      type: "image/jpeg",
-    } as unknown as Blob);
-
-    const token = await getToken();
-    const res = await fetch(`${API_URL}/api/v1/catalog-requests`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      Alert.alert("Hata", err.error ?? "Talep oluşturulamadı");
-      return;
-    }
-
-    setNote("");
-    setQuantity("1");
-    load();
-    Alert.alert("Başarılı", "Ürün talebi oluşturuldu");
-  }
-
   return (
     <Screen title="Ürün Talepleri" subtitle="Katalog ürünleri için talep açın" menuItems={STORE_MENU}>
       {loading && items.length === 0 ? (
@@ -175,8 +135,6 @@ export default function StoreCatalog() {
           )}
           <InputField label="Not (opsiyonel)" value={note} onChangeText={setNote} placeholder="Açıklama" />
           <PrimaryButton label="Talep Oluştur" onPress={submitRequest} />
-          <View style={{ height: spacing.sm }} />
-          <PrimaryButton label="Fotoğraflı Talep Oluştur" onPress={submitWithPhoto} />
         </Card>
       )}
 
