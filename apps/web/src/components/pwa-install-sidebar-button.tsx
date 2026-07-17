@@ -12,22 +12,28 @@ export function PwaInstallSidebarButton({
   variant?: "desktop" | "mobile";
 }) {
   const { standalone, canPromptInstall, installApp, installHint, ios } = usePwaInstall();
-  const [showHint, setShowHint] = useState(false);
+  const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(false);
 
   if (standalone) return null;
 
   async function onClick() {
-    if (canPromptInstall) {
-      setBusy(true);
-      try {
-        await installApp();
-      } finally {
-        setBusy(false);
+    setBusy(true);
+    setHint("");
+    try {
+      const outcome = await installApp();
+      if (outcome === "unavailable") {
+        setHint(installHint);
+        return;
       }
-      return;
+      if (outcome === "dismissed") {
+        setHint("Kurulum iptal edildi. Tekrar denemek için butona basın.");
+      }
+    } catch (error) {
+      setHint(error instanceof Error ? error.message : "Kurulum başlatılamadı");
+    } finally {
+      setBusy(false);
     }
-    setShowHint((v) => !v);
   }
 
   const isDesktop = variant === "desktop";
@@ -40,7 +46,8 @@ export function PwaInstallSidebarButton({
         className={cn(
           "w-full justify-start",
           isDesktop &&
-            "text-[hsl(var(--sidebar-muted))] hover:bg-white/10 hover:text-[hsl(var(--sidebar-foreground))]"
+            "text-[hsl(var(--sidebar-muted))] hover:bg-white/10 hover:text-[hsl(var(--sidebar-foreground))]",
+          canPromptInstall && isDesktop && "bg-white/10 text-[hsl(var(--sidebar-foreground))]"
         )}
         onClick={() => void onClick()}
         disabled={busy}
@@ -50,9 +57,9 @@ export function PwaInstallSidebarButton({
         ) : (
           <Download className="mr-2 h-4 w-4" />
         )}
-        {busy ? "Ekleniyor..." : "Ana ekrana / masaüstüne ekle"}
+        {busy ? "Ekleniyor..." : "Ana ekrana ekle"}
       </Button>
-      {showHint && !canPromptInstall ? (
+      {hint ? (
         <p
           className={cn(
             "rounded-lg px-3 py-2 text-xs leading-relaxed",
@@ -61,7 +68,7 @@ export function PwaInstallSidebarButton({
               : "bg-muted text-muted-foreground"
           )}
         >
-          {installHint}
+          {hint}
         </p>
       ) : null}
     </div>

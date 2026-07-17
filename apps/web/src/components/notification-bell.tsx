@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import type { PaginatedResponse } from "@magaza/shared";
 import {
   canUseWebPush,
+  ensureServiceWorkerRegistration,
   isIosDevice,
   isStandaloneMode,
   syncWebPushSubscription,
@@ -90,9 +91,16 @@ export function NotificationBell() {
     setPushLoading(true);
     setPushMessage("");
     try {
+      await ensureServiceWorkerRegistration();
       const result = await syncWebPushSubscription(true);
       setPushState(result.state);
-      setPushMessage(result.message ?? "");
+      setPushMessage(
+        result.message ??
+          (result.ok ? "Bildirimler açıldı." : "Bildirimler açılamadı. Tekrar deneyin.")
+      );
+    } catch (error) {
+      setPushState("idle");
+      setPushMessage(error instanceof Error ? error.message : "Bildirimler açılamadı");
     } finally {
       setPushLoading(false);
     }

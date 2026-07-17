@@ -11,13 +11,15 @@ export type WebPushState = "idle" | "loading" | "enabled" | "denied" | "unsuppor
 
 export function isIosDevice() {
   if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent);
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
 export function isStandaloneMode() {
   if (typeof window === "undefined") return false;
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
+    window.matchMedia("(display-mode: fullscreen)").matches ||
     (navigator as Navigator & { standalone?: boolean }).standalone === true
   );
 }
@@ -29,6 +31,35 @@ export function canUseWebPush() {
     "PushManager" in window &&
     "Notification" in window
   );
+}
+
+export async function ensureServiceWorkerRegistration(): Promise<ServiceWorkerRegistration> {
+  if (!("serviceWorker" in navigator)) {
+    throw new Error("Bu tarayıcı service worker desteklemiyor.");
+  }
+  const registration = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+  await navigator.serviceWorker.ready;
+
+  if (!registration.active) {
+    await new Promise<void>((resolve) => {
+      const worker = registration.installing || registration.waiting;
+      if (!worker) {
+        resolve();
+        return;
+      }
+      if (worker.state === "activated") {
+        resolve();
+        return;
+      }
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "activated" || worker.state === "installed") resolve();
+      });
+      // Don't hang forever on broken SW installs
+      setTimeout(() => resolve(), 8000);
+    });
+  }
+
+  return registration;
 }
 
 export async function syncWebPushSubscription(requestPermission = false): Promise<{
@@ -44,13 +75,22 @@ export async function syncWebPushSubscription(requestPermission = false): Promis
     return {
       ok: false,
       state: "idle",
-      message: "iPhone'da önce Safari'den Ana Ekrana Ekle yapın, sonra uygulamayı oradan açıp bildirimleri etkinleştirin.",
+      message:
+        "iPhone'da önce Ana Ekrana Ekle yapın, uygulamayı o ikondan açın, sonra Bildirimleri etkinleştirin.",
     };
   }
 
   let permission = Notification.permission;
   if (permission === "default" && requestPermission) {
-    permission = await Notification.requestPermission();
+    try {
+      permission = await Notification.requestPermission();
+    } catch {
+      return {
+        ok: false,
+        state: "idle",
+        message: "Bildirim izni istenemedi. Tarayıcı ayarlarını kontrol edin.",
+      };
+    }
   }
 
   if (permission !== "granted") {
@@ -59,33 +99,85 @@ export async function syncWebPushSubscription(requestPermission = false): Promis
       state: permission === "denied" ? "denied" : "idle",
       message:
         permission === "denied"
-          ? "Bildirim izni kapalı. Tarayıcı veya sistem ayarlarından bu siteye izin verin."
-          : undefined,
+          ? "Bildirim izni kapalı. Tarayıcı site ayarlarından bu siteye izin verin, sonra tekrar deneyin."
+          : requestPermission
+            ? "Bildirim izni verilmedi. Tekrar deneyin ve İzin Ver seçin."
+            : undefined,
     };
   }
 
-  const keyRes = await fetch("/api/v1/web-push/public-key");
-  const keyJson = await keyRes.json();
+  let registration: ServiceWorkerRegistration;
+  try {
+    registration = await ensureServiceWorkerRegistration();
+  } catch (error) {
+    return {
+      ok: false,
+      state: "idle",
+      message: error instanceof Error ? error.message : "Service worker kaydı başarısız.",
+    };
+  }
+
+  const keyRes = await fetch("/api/v1/web-push/public-key", { credentials: "same-origin" });
+  const keyJson = await keyRes.json().catch(() => ({}));
   if (!keyRes.ok || !keyJson.publicKey) {
     return {
       ok: false,
       state: "idle",
-      message: keyJson.error ?? "Web Push yapılandırması eksik. Yöneticiye VAPID anahtarlarını kontrol ettirin.",
+      message:
+        keyJson.error ??
+        "Web Push yapılandırması eksik. Coolify’da VAPID_PUBLIC_KEY ve VAPID_PRIVATE_KEY tanımlayın.",
     };
   }
 
-  const registration = await navigator.serviceWorker.ready;
   let subscription = await registration.pushManager.getSubscription();
   if (!subscription) {
-    subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(keyJson.publicKey),
-    });
+    try {
+      subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(keyJson.publicKey),
+      });
+    } catch (error) {
+      // Stale subscription / key mismatch — clear and retry once
+      const old = await registration.pushManager.getSubscription();
+      if (old) {
+        try {
+          await old.unsubscribe();
+        } catch {
+          /* ignore */
+        }
+      }
+      try {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(keyJson.publicKey),
+        });
+      } catch (retryError) {
+        return {
+          ok: false,
+          state: "idle",
+          message:
+            retryError instanceof Error
+              ? `Abonelik oluşturulamadı: ${retryError.message}`
+              : error instanceof Error
+                ? `Abonelik oluşturulamadı: ${error.message}`
+                : "Bildirim aboneliği oluşturulamadı.",
+        };
+      }
+    }
   }
 
   const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    return {
+      ok: false,
+      state: "idle",
+      message: "Tarayıcı abonelik anahtarlarını vermedi. Sayfayı yenileyip tekrar deneyin.",
+    };
+  }
+
   const saveRes = await fetch("/api/v1/web-push/subscriptions", {
     method: "POST",
+    credentials: "same-origin",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       endpoint: json.endpoint,
@@ -93,12 +185,12 @@ export async function syncWebPushSubscription(requestPermission = false): Promis
       expirationTime: json.expirationTime ?? null,
     }),
   });
-  const saveJson = await saveRes.json();
+  const saveJson = await saveRes.json().catch(() => ({}));
   if (!saveRes.ok) {
     return {
       ok: false,
       state: "idle",
-      message: saveJson.error ?? "Bildirim aboneliği kaydedilemedi.",
+      message: saveJson.error ?? `Bildirim aboneliği kaydedilemedi (${saveRes.status}).`,
     };
   }
 

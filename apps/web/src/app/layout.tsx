@@ -34,6 +34,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="tr" suppressHydrationWarning>
+      <head>
+        {/* Capture install prompt before React hydrates — otherwise the event is lost */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `window.__deferredInstallPrompt=null;window.addEventListener("beforeinstallprompt",function(e){e.preventDefault();window.__deferredInstallPrompt=e;window.dispatchEvent(new Event("pwa-install-available"));});`,
+          }}
+        />
+      </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>
       </body>
