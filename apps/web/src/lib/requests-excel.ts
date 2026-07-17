@@ -158,7 +158,7 @@ export async function generateRequestsExcelBuffer(
   const includeCatalog = tab === "all" || tab === "catalog";
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Mağaza Platform";
+  workbook.creator = "Reklam Platform";
   workbook.created = new Date();
 
   const sizeInputs: SizeInput[] = [];

@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,7 +11,6 @@ import { DeveloperFooter } from "@/components/developer-footer";
 import { BrandLogo } from "@/components/brand-logo";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -36,8 +34,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.refresh();
-    router.push("/");
+    // Full navigation so the session cookie is always present on the next request
+    window.location.assign("/");
   }
 
   return (
@@ -45,7 +43,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md border-0 shadow-2xl">
         <CardHeader className="space-y-2 text-center">
           <BrandLogo className="mx-auto h-14 w-14" />
-          <CardTitle className="text-2xl">Mağaza Platform</CardTitle>
+          <CardTitle className="text-2xl">Reklam Platform</CardTitle>
           <CardDescription>
             Envanter ve görsel yönetim sistemine giriş yapın
           </CardDescription>

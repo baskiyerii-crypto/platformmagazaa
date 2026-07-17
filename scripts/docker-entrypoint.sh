@@ -3,14 +3,16 @@ set -e
 
 echo "[entrypoint] starting..."
 
-# Sync schema + ensure default users (non-fatal — app must still boot)
+# Sync schema + optional seed (non-fatal — app must still boot)
 if [ -n "$DATABASE_URL" ] && [ -f /app/prisma/schema.prisma ]; then
   echo "[entrypoint] prisma db push..."
   if prisma db push --schema=/app/prisma/schema.prisma --skip-generate; then
     echo "[entrypoint] ensure-seed..."
     if [ -f /seed/ensure-seed.cjs ]; then
-      # Safe by default: does not recreate deleted Kadıköy / Demir Baş.
-      # SKIP_SEED=1 | FORCE_SEED=1 | FORCE_SEED_PASSWORDS=1 supported.
+      # Default: no data writes on redeploy (maintenance).
+      # Full seed only on empty DB or FORCE_SEED=1.
+      # SKIP_SEED=1 = skip entirely | FORCE_SEED_PASSWORDS=1 = reset bootstrap passwords.
+      # Coolify: do NOT set FORCE_SEED / FORCE_SEED_PASSWORDS in production.
       NODE_PATH=/seed/node_modules node /seed/ensure-seed.cjs \
         || echo "[entrypoint] WARNING: ensure-seed failed (app will still start)"
     else

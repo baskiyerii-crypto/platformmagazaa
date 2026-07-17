@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Mağaza Platform",
-    short_name: "Mağaza",
+    name: "Reklam Platform",
+    short_name: "Reklam",
     description: "AVM ve açık hava alan envanteri yönetim sistemi",
     start_url: "/",
     scope: "/",

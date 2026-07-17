@@ -1,7 +1,7 @@
 /* eslint-disable no-restricted-globals */
 self.addEventListener("push", (event) => {
   let data = {
-    title: "Mağaza Platform",
+    title: "Reklam Platform",
     body: "Yeni bildiriminiz var",
     linkUrl: "/",
     icon: "/api/v1/branding/icon/192",

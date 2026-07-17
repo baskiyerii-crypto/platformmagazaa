@@ -6,13 +6,13 @@ import { Providers } from "@/components/providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Mağaza Envanter Platformu",
+  title: "Reklam Platform",
   description: "AVM ve açık hava alan envanteri yönetim sistemi",
-  applicationName: "Mağaza Platform",
+  applicationName: "Reklam Platform",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Mağaza Platform",
+    title: "Reklam Platform",
   },
   icons: {
     icon: [

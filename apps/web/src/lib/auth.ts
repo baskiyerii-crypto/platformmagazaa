@@ -57,9 +57,30 @@ if (process.env.NODE_ENV === "production" && !readEnv("NEXTAUTH_URL")) {
   );
 }
 
+const useSecureCookies =
+  Boolean(readEnv("NEXTAUTH_URL")?.startsWith("https://")) ||
+  process.env.NODE_ENV === "production";
+
 export const authOptions: NextAuthOptions = {
   secret: authSecret,
-  session: { strategy: "jwt" },
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  useSecureCookies,
+  cookies: {
+    sessionToken: {
+      name: useSecureCookies
+        ? "__Secure-next-auth.session-token"
+        : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: useSecureCookies,
+      },
+    },
+  },
   pages: { signIn: "/login" },
   providers: [
     CredentialsProvider({

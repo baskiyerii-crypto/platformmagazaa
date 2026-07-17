@@ -156,7 +156,7 @@ export function DashboardLayout({
               />
               <div className="min-w-0">
                 <div className="text-[11px] font-semibold uppercase tracking-widest text-[hsl(var(--sidebar-muted))]">
-                  Mağaza Platform
+                  Reklam Platform
                 </div>
                 <h1 className="mt-0.5 truncate text-lg font-semibold">{panelTitle}</h1>
               </div>

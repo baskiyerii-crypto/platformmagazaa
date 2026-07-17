@@ -20,7 +20,7 @@ function reportTypeLabel(link?: AdExpenseFilters["link"]) {
 export async function generateAdExpensesExcelBuffer(filters: AdExpenseFilters) {
   const items = await listAdExpenses(filters);
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Platform Magaza";
+  workbook.creator = "Reklam Platform";
 
   const isCampaignOnly = filters.link === "campaign";
   const isSpecialOnly = filters.link === "general";

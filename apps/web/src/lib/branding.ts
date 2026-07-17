@@ -68,7 +68,7 @@ export async function generateDefaultIconPng(size: number): Promise<Buffer> {
       <rect width="${size}" height="${size}" rx="${Math.round(size * 0.22)}" fill="url(#g)"/>
       <text x="50%" y="54%" text-anchor="middle" dominant-baseline="middle"
         font-family="Arial, Helvetica, sans-serif" font-weight="700"
-        font-size="${Math.round(size * 0.42)}" fill="#ffffff">M</text>
+        font-size="${Math.round(size * 0.42)}" fill="#ffffff">R</text>
     </svg>
   `;
   return sharp(Buffer.from(svg)).png().toBuffer();

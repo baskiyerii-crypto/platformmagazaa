@@ -1,5 +1,8 @@
 # Fallback: Coolify Nixpacks kullanıyorsa imajı biraz küçült.
 # ÖNERİLEN: Coolify → Build Pack = Dockerfile (çok daha küçük / stabil).
+# Start uses scripts/ensure-seed.cjs — same rules as Docker:
+#   normal deploy = no data writes; full seed only if empty DB or FORCE_SEED=1.
+#   Do not set FORCE_SEED in Coolify production.
 
 [phases.setup]
 nixPkgs = ["nodejs_22", "pnpm", "openssl"]

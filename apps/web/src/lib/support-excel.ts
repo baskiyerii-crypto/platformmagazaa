@@ -30,7 +30,7 @@ export async function generateSupportTicketsExcelBuffer(
   });
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Mağaza Platform";
+  workbook.creator = "Reklam Platform";
   const sheet = workbook.addWorksheet("Destek Talepleri");
   sheet.columns = [
     { header: "Tarih", key: "date", width: 18 },

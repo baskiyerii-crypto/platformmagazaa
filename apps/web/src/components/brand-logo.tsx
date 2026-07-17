@@ -60,7 +60,7 @@ export function BrandLogo({
       <div className={`relative overflow-hidden rounded-2xl ${className}`}>
         <Image
           src={src}
-          alt="Mağaza Platform logosu"
+          alt="Reklam Platform logosu"
           fill
           className={imageClassName}
           unoptimized
@@ -75,7 +75,7 @@ export function BrandLogo({
       className={`flex items-center justify-center rounded-2xl ${fallbackClassName} ${className}`}
       aria-hidden
     >
-      M
+      R
     </div>
   );
 }

@@ -2,7 +2,7 @@ const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
 
 /** @type {import('expo/config').ExpoConfig} */
 const config = {
-  name: "Mağaza Platform",
+  name: "Reklam Platform",
   slug: "magaza-platform",
   version: "1.0.0",
   orientation: "portrait",

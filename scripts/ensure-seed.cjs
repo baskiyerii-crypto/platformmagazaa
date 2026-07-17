@@ -1,13 +1,17 @@
 /**
  * Production bootstrap seed.
  *
- * Default (every deploy): only ensure missing ADMIN/MANAGER logins exist.
- * Does NOT recreate deleted demo store / catalog products / reset passwords.
+ * Default (normal deploy / maintenance): NO data writes.
+ * Only creates an emergency admin if there are zero ADMIN users.
+ *
+ * Full seed (admins + structural defs + Kadıköy demo + catalog) runs ONLY when:
+ *   - database has zero users (first boot), OR
+ *   - FORCE_SEED=1
  *
  * Env:
  *   SKIP_SEED=1              — skip entirely
- *   FORCE_SEED=1             — first-time style: demos + structural defs + optional password reset
- *   FORCE_SEED_PASSWORDS=1   — reset known admin passwords to defaults (use carefully)
+ *   FORCE_SEED=1             — full bootstrap even if DB already has users
+ *   FORCE_SEED_PASSWORDS=1   — reset known bootstrap passwords (bootstrap only, or with this flag)
  */
 const { PrismaClient } = require("@prisma/client");
 const bcrypt = require("bcryptjs");
@@ -52,11 +56,24 @@ async function ensureUser(username, password, role, storeId = null, { resetPassw
   return user;
 }
 
-async function ensureAdmins({ resetPassword }) {
+async function ensureBootstrapAdmins({ resetPassword }) {
   await ensureUser("admin", "admin123", "ADMIN", null, { resetPassword });
   await ensureUser("yusuf", "yusuf634152K", "ADMIN", null, { resetPassword });
   await ensureUser("mudur", "mudur634152K", "MANAGER", null, { resetPassword });
-  console.log("[ensure-seed] admin users ensured (missing-only unless password reset)");
+  console.log("[ensure-seed] bootstrap admins ensured");
+}
+
+/** Lockout safety: only if zero ADMIN accounts exist — never recreates deleted yusuf/mudur. */
+async function ensureEmergencyAdminIfNeeded() {
+  const adminCount = await prisma.user.count({ where: { role: "ADMIN" } });
+  if (adminCount > 0) {
+    console.log("[ensure-seed] maintenance — no data changes");
+    return;
+  }
+  await ensureUser("admin", "admin123", "ADMIN", null, { resetPassword: false });
+  console.log(
+    "[ensure-seed] emergency admin created (zero ADMIN users) — change password after login"
+  );
 }
 
 async function seedStructuralDefinitions() {
@@ -93,7 +110,6 @@ async function seedStructuralDefinitions() {
   ];
 
   for (const st of subTypes) {
-    // create-only: do not revive admin-deleted subtypes
     const existing = await prisma.areaSubType.findUnique({
       where: { categoryId_code: { categoryId: st.categoryId, code: st.code } },
     });
@@ -215,29 +231,25 @@ async function main() {
   const userCount = await prisma.user.count().catch(() => 0);
   const isEmpty = userCount === 0;
   const bootstrap = forceSeed || isEmpty;
+  // Password reset only on empty DB, FORCE_SEED_PASSWORDS, never on routine deploys
   const resetPassword = forcePasswords || isEmpty;
 
-  if (bootstrap) {
-    console.log(
-      `[ensure-seed] bootstrap mode (${isEmpty ? "empty DB" : "FORCE_SEED=1"})`
-    );
-  } else {
-    console.log(
-      "[ensure-seed] maintenance mode — will not recreate Kadıköy / Demir Baş / demo data"
-    );
+  if (!bootstrap) {
+    await ensureEmergencyAdminIfNeeded();
+    console.log("[ensure-seed] done");
+    return;
   }
 
-  await ensureAdmins({ resetPassword });
+  console.log(
+    `[ensure-seed] bootstrap mode (${isEmpty ? "empty DB" : "FORCE_SEED=1"})`
+  );
+
+  await ensureBootstrapAdmins({ resetPassword });
 
   try {
-    // Structural defs: create-only missing rows (safe on every deploy)
     await seedStructuralDefinitions();
     await cleanupLegacyGenelKatalogDump();
-
-    // Demo store + catalog ONLY on empty DB or FORCE_SEED
-    if (bootstrap) {
-      await seedDemoStoreAndCatalog();
-    }
+    await seedDemoStoreAndCatalog();
   } catch (e) {
     console.error(
       "[ensure-seed] definitions/store skipped (run prisma db push):",

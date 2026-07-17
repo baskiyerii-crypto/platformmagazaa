@@ -16,7 +16,7 @@ export async function generateInventoryExcelBuffer(
 ): Promise<Buffer> {
   const rows = await fetchInventoryForExport(filters);
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Mağaza Platform";
+  workbook.creator = "Reklam Platform";
   workbook.created = new Date();
 
   const sheet = workbook.addWorksheet("Envanter");

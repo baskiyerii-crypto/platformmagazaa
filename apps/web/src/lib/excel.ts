@@ -40,7 +40,7 @@ function addSheet(
  */
 export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Mağaza Platform";
+  workbook.creator = "Reklam Platform";
   workbook.created = new Date();
 
   const storeWhere = storeId ? { id: storeId } : undefined;

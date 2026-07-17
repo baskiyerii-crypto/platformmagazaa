@@ -65,9 +65,9 @@ export default function LoginScreen() {
       >
         <View style={s.logoWrap}>
           <View style={s.logo}>
-            <Text style={s.logoLetter}>M</Text>
+            <Text style={s.logoLetter}>R</Text>
           </View>
-          <Text style={s.heading}>Mağaza Platform</Text>
+          <Text style={s.heading}>Reklam Platform</Text>
           <Text style={s.sub}>Envanter ve mağaza yönetimi</Text>
           {serverOk === false ? (
             <Text style={s.serverError}>

@@ -49,7 +49,7 @@ export function AppHeader({
       <Modal visible={open} animationType="fade" transparent onRequestClose={() => setOpen(false)}>
         <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={() => setOpen(false)} />
         <View style={styles.drawer}>
-          <Text style={styles.drawerTitle}>Mağaza Platform</Text>
+          <Text style={styles.drawerTitle}>Reklam Platform</Text>
           <Text style={styles.drawerHint}>Menü</Text>
           <ScrollView showsVerticalScrollIndicator={false} style={styles.drawerScroll}>
             {menuItems.map((item) => {
