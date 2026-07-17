@@ -66,7 +66,8 @@ type CatalogReq = {
   id: string;
   store: { name: string };
   status: ChangeRequestStatus;
-  catalogItem: { name: string };
+  catalogItem: { name: string; category?: { name: string } | null };
+  campaign?: { name: string } | null;
   quantity?: number | null;
 };
 
@@ -236,7 +237,11 @@ export default function AdminRequests() {
     ({ item: req }: { item: CatalogReq }) => (
       <Card>
         <Text style={styles.cardTitle}>{req.store.name}</Text>
-        <Text style={styles.cardSubtitle}>{req.catalogItem.name}</Text>
+        <Text style={styles.cardSubtitle}>
+          {req.campaign?.name ? `${req.campaign.name} · ` : ""}
+          {req.catalogItem.category?.name ? `${req.catalogItem.category.name} · ` : ""}
+          {req.catalogItem.name}
+        </Text>
         {req.quantity ? <Text style={styles.cardBody}>Adet: {req.quantity}</Text> : null}
         <View style={{ marginTop: 12 }}>
           <StatusPill label={CHANGE_REQUEST_STATUS_LABELS[req.status]} backgroundColor={STATUS_COLORS[req.status] ?? "#F0EFEB"} />

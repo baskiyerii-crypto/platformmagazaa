@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma, ChangeRequestStatus } from "@magaza/database";
 import { withAuth, jsonError } from "@/lib/api-auth";
-import { createCatalogRequestSchema, isStaffRole, parsePagination, paginatedResponse } from "@magaza/shared";
+import {
+  createCatalogRequestSchema,
+  bulkCatalogRequestSchema,
+  isStaffRole,
+  parsePagination,
+  paginatedResponse,
+} from "@magaza/shared";
 import { createCatalogStatusHistory } from "@/lib/catalog-request";
 import { saveUploadedFile } from "@/lib/upload";
 import { notifyStaff } from "@/lib/notify";
 import { cleanupMediaUrls } from "@/lib/media-cleanup";
+import { endOfDay, isCampaignOpenForRequests, startOfDay } from "@/lib/catalog-campaign";
 
 function resolveStoreId(
   auth: { role: string; storeId?: string | null },
@@ -16,18 +23,43 @@ function resolveStoreId(
   return null;
 }
 
+const CLOSED_STATUSES: ChangeRequestStatus[] = ["MAGAZADA_GUNCELLENDI", "REDDEDILDI"];
+
+const catalogRequestInclude = {
+  store: { select: { id: true, name: true } },
+  campaign: { select: { id: true, name: true, mode: true } },
+  catalogItem: {
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      type: true,
+      referenceImageUrl: true,
+      categoryId: true,
+      category: { select: { id: true, name: true } },
+    },
+  },
+} as const;
+
 export const GET = withAuth(async (request, auth) => {
   const { searchParams } = new URL(request.url);
   const { page, limit, skip, take } = parsePagination(searchParams);
   const status = searchParams.get("status");
   const storeIdParam = searchParams.get("storeId");
   const catalogItemId = searchParams.get("catalogItemId");
+  const campaignId = searchParams.get("campaignId");
+  const categoryId = searchParams.get("categoryId");
+  const dateFrom = searchParams.get("dateFrom");
+  const dateTo = searchParams.get("dateTo");
   const detail = searchParams.get("detail") === "true";
 
   const where: {
     storeId?: string;
     status?: ChangeRequestStatus;
     catalogItemId?: string;
+    campaignId?: string;
+    createdAt?: { gte?: Date; lte?: Date };
+    catalogItem?: { categoryId?: string };
   } = {};
 
   if (auth.role === "STORE") {
@@ -39,23 +71,27 @@ export const GET = withAuth(async (request, auth) => {
 
   if (status) where.status = status as ChangeRequestStatus;
   if (catalogItemId) where.catalogItemId = catalogItemId;
+  if (campaignId) where.campaignId = campaignId;
+  if (categoryId) where.catalogItem = { categoryId };
+  if (dateFrom || dateTo) {
+    where.createdAt = {};
+    if (dateFrom) where.createdAt.gte = startOfDay(new Date(dateFrom));
+    if (dateTo) where.createdAt.lte = endOfDay(new Date(dateTo));
+  }
 
   const [items, total] = await Promise.all([
     prisma.catalogRequest.findMany({
       where,
       include: detail
         ? {
-            store: { select: { id: true, name: true } },
+            ...catalogRequestInclude,
             catalogItem: true,
             history: {
               include: { user: { select: { username: true } } },
               orderBy: { createdAt: "desc" },
             },
           }
-        : {
-            store: { select: { id: true, name: true } },
-            catalogItem: { select: { id: true, name: true, type: true, referenceImageUrl: true } },
-          },
+        : catalogRequestInclude,
       orderBy: { createdAt: "desc" },
       skip,
       take,
@@ -66,6 +102,93 @@ export const GET = withAuth(async (request, auth) => {
   return NextResponse.json(paginatedResponse(items, total, page, limit));
 });
 
+async function createSingleRequest(args: {
+  storeId: string;
+  catalogItemId: string;
+  quantity: number;
+  note: string | null;
+  storeImageUrl: string | null;
+  userId: string;
+  notify: boolean;
+}) {
+  const catalogItem = await prisma.catalogItem.findUnique({
+    where: { id: args.catalogItemId },
+    include: { campaign: true },
+  });
+  if (!catalogItem || !catalogItem.active) {
+    throw new Error("Ürün bulunamadı");
+  }
+  if (!catalogItem.campaignId || !catalogItem.campaign) {
+    throw new Error("Ürün bir kampanyaya bağlı değil");
+  }
+  if (!isCampaignOpenForRequests(catalogItem.campaign)) {
+    throw new Error("Bu kampanya şu an talep kabul etmiyor");
+  }
+
+  const openRequest = await prisma.catalogRequest.findFirst({
+    where: {
+      storeId: args.storeId,
+      catalogItemId: args.catalogItemId,
+      status: { notIn: CLOSED_STATUSES },
+    },
+  });
+
+  if (openRequest) {
+    const updated = await prisma.catalogRequest.update({
+      where: { id: openRequest.id },
+      data: {
+        quantity: args.quantity,
+        campaignId: catalogItem.campaignId,
+        note: args.note,
+        ...(args.storeImageUrl ? { storeImageUrl: args.storeImageUrl } : {}),
+      },
+      include: catalogRequestInclude,
+    });
+    await createCatalogStatusHistory(
+      prisma,
+      updated.id,
+      openRequest.status,
+      openRequest.status,
+      args.userId,
+      `Adet güncellendi: ${args.quantity}`
+    );
+    return { request: updated, created: false };
+  }
+
+  const catalogRequest = await prisma.catalogRequest.create({
+    data: {
+      storeId: args.storeId,
+      campaignId: catalogItem.campaignId,
+      catalogItemId: args.catalogItemId,
+      quantity: args.quantity,
+      note: args.note,
+      storeImageUrl: args.storeImageUrl,
+      status: "TALEP_OLUSTURULDU",
+    },
+    include: catalogRequestInclude,
+  });
+
+  await createCatalogStatusHistory(
+    prisma,
+    catalogRequest.id,
+    null,
+    "TALEP_OLUSTURULDU",
+    args.userId,
+    null
+  );
+
+  if (args.notify) {
+    await notifyStaff({
+      type: "CATALOG_REQUEST",
+      title: "Yeni Ürün Talebi",
+      body: `${catalogRequest.store.name} — ${catalogItem.name} — ${args.quantity} adet`,
+      linkUrl: "/admin/requests",
+    });
+  }
+
+  return { request: catalogRequest, created: true };
+}
+
 export const POST = withAuth(async (request, auth) => {
   const contentType = request.headers.get("content-type") ?? "";
   let body: Record<string, unknown> = {};
@@ -75,11 +198,24 @@ export const POST = withAuth(async (request, auth) => {
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
     storeIdParam = formData.get("storeId")?.toString() ?? null;
-    body = {
-      catalogItemId: formData.get("catalogItemId")?.toString(),
-      quantity: formData.get("quantity") ? Number(formData.get("quantity")) : null,
-      note: auth.role === "STORE" ? null : formData.get("note")?.toString() || null,
-    };
+    const bulkRaw = formData.get("items")?.toString();
+    if (bulkRaw) {
+      try {
+        body = {
+          campaignId: formData.get("campaignId")?.toString(),
+          items: JSON.parse(bulkRaw),
+        };
+      } catch {
+        return jsonError("Geçersiz toplu talep verisi", 400);
+      }
+    } else {
+      body = {
+        catalogItemId: formData.get("catalogItemId")?.toString(),
+        quantity: formData.get("quantity") ? Number(formData.get("quantity")) : null,
+        note: auth.role === "STORE" ? null : formData.get("note")?.toString() || null,
+        campaignId: formData.get("campaignId")?.toString() || null,
+      };
+    }
     const file = formData.get("file");
     if (auth.role !== "STORE" && file instanceof File && file.size > 0) {
       storeImageUrl = await saveUploadedFile(file, {
@@ -93,7 +229,7 @@ export const POST = withAuth(async (request, auth) => {
     storeIdParam = (body.storeId as string) ?? null;
     if (auth.role === "STORE") body.note = null;
     storeImageUrl =
-      auth.role === "STORE" ? null : (body.storeImageUrl as string) ?? null;
+      auth.role === "STORE" ? null : ((body.storeImageUrl as string) ?? null);
   }
 
   const storeId = resolveStoreId(auth, storeIdParam);
@@ -104,67 +240,91 @@ export const POST = withAuth(async (request, auth) => {
     );
   }
 
+  // Bulk campaign submission
+  if (Array.isArray(body.items)) {
+    const parsed = bulkCatalogRequestSchema.safeParse(body);
+    if (!parsed.success) {
+      return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
+    }
+
+    const campaign = await prisma.catalogCampaign.findUnique({
+      where: { id: parsed.data.campaignId },
+    });
+    if (!campaign) return jsonError("Kampanya bulunamadı", 404);
+    if (!isCampaignOpenForRequests(campaign)) {
+      return jsonError("Bu kampanya şu an talep kabul etmiyor", 400);
+    }
+
+    const itemIds = parsed.data.items.map((i) => i.catalogItemId);
+    const catalogItems = await prisma.catalogItem.findMany({
+      where: {
+        id: { in: itemIds },
+        active: true,
+        campaignId: campaign.id,
+      },
+    });
+    if (catalogItems.length !== itemIds.length) {
+      return jsonError("Bazı ürünler bu kampanyada bulunamadı", 400);
+    }
+
+    const results = [];
+    for (const line of parsed.data.items) {
+      try {
+        const result = await createSingleRequest({
+          storeId,
+          catalogItemId: line.catalogItemId,
+          quantity: line.quantity,
+          note: null,
+          storeImageUrl: null,
+          userId: auth.userId,
+          notify: false,
+        });
+        results.push(result.request);
+      } catch (e) {
+        return jsonError(e instanceof Error ? e.message : "Talep kaydedilemedi", 400);
+      }
+    }
+
+    if (auth.role === "STORE") {
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { name: true },
+      });
+      const totalQty = parsed.data.items.reduce((s, i) => s + i.quantity, 0);
+      await notifyStaff({
+        type: "CATALOG_REQUEST",
+        title: "Kampanya Adet Bildirimi",
+        body: `${store?.name ?? "Mağaza"} — ${campaign.name} — ${parsed.data.items.length} ürün / ${totalQty} adet`,
+        linkUrl: "/admin/requests",
+      });
+    }
+
+    return NextResponse.json(
+      { success: true, count: results.length, items: results },
+      { status: 201 }
+    );
+  }
+
+  // Single item (legacy / staff)
   const parsed = createCatalogRequestSchema.safeParse({ ...body, storeImageUrl });
   if (!parsed.success) {
     return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
   }
 
-  const catalogItem = await prisma.catalogItem.findUnique({
-    where: { id: parsed.data.catalogItemId },
-  });
-  if (!catalogItem || !catalogItem.active) {
-    return jsonError("Ürün bulunamadı", 404);
-  }
-
-  if (!parsed.data.quantity || parsed.data.quantity < 1) {
-    return jsonError("Ürün talebi için adet zorunlu", 400);
-  }
-
-  const openRequest = await prisma.catalogRequest.findFirst({
-    where: {
-      storeId,
-      catalogItemId: parsed.data.catalogItemId,
-      status: { notIn: ["MAGAZADA_GUNCELLENDI", "REDDEDILDI"] },
-    },
-  });
-  if (openRequest) {
-    return jsonError("Bu ürün için açık bir talep zaten var", 400);
-  }
-
-  const catalogRequest = await prisma.catalogRequest.create({
-    data: {
+  try {
+    const { request: catalogRequest } = await createSingleRequest({
       storeId,
       catalogItemId: parsed.data.catalogItemId,
       quantity: parsed.data.quantity,
-      note: parsed.data.note,
+      note: auth.role === "STORE" ? null : (parsed.data.note ?? null),
       storeImageUrl,
-      status: "TALEP_OLUSTURULDU",
-    },
-    include: {
-      store: { select: { name: true } },
-      catalogItem: true,
-    },
-  });
-
-  await createCatalogStatusHistory(
-    prisma,
-    catalogRequest.id,
-    null,
-    "TALEP_OLUSTURULDU",
-    auth.userId,
-    parsed.data.note
-  );
-
-  if (auth.role === "STORE") {
-    await notifyStaff({
-      type: "CATALOG_REQUEST",
-      title: "Yeni Ürün Talebi",
-      body: `${catalogRequest.store.name} — ${catalogItem.name} — ${parsed.data.quantity} adet`,
-      linkUrl: "/admin/requests",
+      userId: auth.userId,
+      notify: auth.role === "STORE",
     });
+    return NextResponse.json(catalogRequest, { status: 201 });
+  } catch (e) {
+    return jsonError(e instanceof Error ? e.message : "Talep oluşturulamadı", 400);
   }
-
-  return NextResponse.json(catalogRequest, { status: 201 });
 });
 
 export const DELETE = withAuth(async (request, auth) => {

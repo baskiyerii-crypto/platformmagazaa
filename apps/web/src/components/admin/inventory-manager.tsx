@@ -243,7 +243,16 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   }
 
   function downloadExport(format: "excel" | "pdf") {
-    window.open(buildExportUrl(format), "_blank");
+    const url = buildExportUrl(format);
+    if (format === "pdf") {
+      window.open(url, "_blank");
+      return;
+    }
+    import("@/lib/download-excel")
+      .then(({ downloadExcelBlob }) =>
+        downloadExcelBlob(url, `envanter-${new Date().toISOString().slice(0, 10)}.xlsx`)
+      )
+      .catch((e) => alert(e instanceof Error ? e.message : "Excel indirilemedi"));
   }
 
   useEffect(() => {

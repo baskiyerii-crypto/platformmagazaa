@@ -43,7 +43,7 @@ type NavItem = {
 const adminNav: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: LayoutDashboard },
   { href: "/admin/inventory", label: "Envanter", icon: Warehouse },
-  { href: "/admin/catalog", label: "Ürün Kataloğu", icon: Package },
+  { href: "/admin/catalog", label: "Kampanya Katalog", icon: Package },
   { href: "/admin/stores", label: "Mağazalar", icon: Store },
   { href: "/admin/registrations", label: "Kayıt Talepleri", icon: UserPlus },
   { href: "/admin/announcements", label: "Duyurular", icon: Megaphone },
@@ -62,7 +62,7 @@ const storeNav: NavItem[] = [
   { href: "/store/avm", label: "AVM Alanları", icon: Building2 },
   { href: "/store/outdoor", label: "Açık Hava", icon: Trees },
   { href: "/store/signage", label: "Mağaza İçi", icon: ImageIcon },
-  { href: "/store/catalog", label: "Ürün Talepleri", icon: Package },
+  { href: "/store/catalog", label: "Kampanya Adetleri", icon: Package },
   { href: "/store/announcements", label: "Duyurular", icon: Megaphone },
   { href: "/store/ad-expenses", label: "Reklam Giderleri", icon: CircleDollarSign },
   { href: "/store/support", label: "Destek", icon: LifeBuoy },

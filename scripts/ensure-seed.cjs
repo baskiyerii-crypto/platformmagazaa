@@ -129,12 +129,45 @@ async function seedDefinitionsAndStore() {
 
   await ensureUser("kadikoy", "magaza123", "STORE", store.id);
 
+  // Default permanent campaign + category for fixed prints / catalog
+  let campaign = await prisma.catalogCampaign.findFirst({
+    where: { name: "Genel Katalog" },
+    orderBy: { createdAt: "asc" },
+  });
+  if (!campaign) {
+    campaign = await prisma.catalogCampaign.create({
+      data: {
+        name: "Genel Katalog",
+        description: "Kalıcı sabit baskı / ürün kataloğu",
+        mode: "PERMANENT",
+        active: true,
+        sortOrder: 0,
+      },
+    });
+    console.log("[ensure-seed] default catalog campaign created");
+  }
+
+  let category = await prisma.catalogCategory.findFirst({
+    where: { campaignId: campaign.id, name: "Genel" },
+  });
+  if (!category) {
+    category = await prisma.catalogCategory.create({
+      data: {
+        campaignId: campaign.id,
+        name: "Genel",
+        sortOrder: 0,
+        active: true,
+      },
+    });
+    console.log("[ensure-seed] default catalog category created");
+  }
+
   const catalogItems = [
     {
       name: "Demir Baş",
       code: "DEMIR_BAS",
       type: "FIXED",
-      description: "Sabit demir baş ürünü — mağaza talep açar",
+      description: "Sabit demir baş ürünü — mağaza adet bildirir",
       sortOrder: 1,
     },
     {
@@ -162,9 +195,42 @@ async function seedDefinitionsAndStore() {
         description: item.description,
         sortOrder: item.sortOrder,
         active: true,
+        campaignId: campaign.id,
+        categoryId: category.id,
       },
-      create: item,
+      create: {
+        ...item,
+        campaignId: campaign.id,
+        categoryId: category.id,
+      },
     });
+  }
+
+  // Backfill orphan catalog items / requests
+  await prisma.catalogItem.updateMany({
+    where: { OR: [{ campaignId: null }, { categoryId: null }] },
+    data: { campaignId: campaign.id, categoryId: category.id },
+  });
+
+  const orphanRequests = await prisma.catalogRequest.findMany({
+    where: { campaignId: null },
+    select: { id: true, catalogItemId: true },
+  });
+  if (orphanRequests.length > 0) {
+    const itemIds = [...new Set(orphanRequests.map((r) => r.catalogItemId))];
+    const items = await prisma.catalogItem.findMany({
+      where: { id: { in: itemIds } },
+      select: { id: true, campaignId: true },
+    });
+    const campaignByItem = new Map(items.map((i) => [i.id, i.campaignId]));
+    for (const req of orphanRequests) {
+      const campaignId = campaignByItem.get(req.catalogItemId) ?? campaign.id;
+      await prisma.catalogRequest.update({
+        where: { id: req.id },
+        data: { campaignId },
+      });
+    }
+    console.log(`[ensure-seed] backfilled ${orphanRequests.length} catalog requests`);
   }
 }
 

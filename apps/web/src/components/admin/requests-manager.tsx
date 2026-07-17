@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Download, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { ClickableThumbnail, ImageLightbox } from "@/components/image-lightbox";
 import { SizeSummaryPanel } from "@/components/admin/size-summary-panel";
 import { formatDate } from "@/lib/utils";
 import type { SizeGroup } from "@/lib/size-groups";
+import { downloadExcelBlob } from "@/lib/download-excel";
 import {
   ADMIN_STATUS_TRANSITIONS,
   CHANGE_REQUEST_STATUS_LABELS,
@@ -57,12 +58,19 @@ type VisualRequest = {
 type CatalogRequest = {
   id: string;
   store: { id: string; name: string };
-  catalogItem: { name: string };
+  campaign?: { id: string; name: string } | null;
+  catalogItem: {
+    name: string;
+    code?: string;
+    category?: { id: string; name: string } | null;
+  };
   quantity?: number | null;
   status: ChangeRequestStatus;
   note?: string | null;
   createdAt: string;
 };
+
+type CampaignOption = { id: string; name: string };
 
 type Store = { id: string; name: string };
 
@@ -120,20 +128,43 @@ export function RequestsManager() {
   const [visualRequests, setVisualRequests] = useState<VisualRequest[]>([]);
   const [catalogRequests, setCatalogRequests] = useState<CatalogRequest[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
+  const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [status, setStatus] = useState("");
   const [storeId, setStoreId] = useState("");
+  const [campaignId, setCampaignId] = useState("");
   const [targetType, setTargetType] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [sizeLoading, setSizeLoading] = useState(false);
+
+  const productTotals = useMemo(() => {
+    const map = new Map<string, { product: string; category: string; campaign: string; adet: number; kayit: number }>();
+    for (const req of catalogRequests) {
+      const key = `${req.campaign?.id ?? ""}:${req.catalogItem.name}`;
+      const current = map.get(key) ?? {
+        product: req.catalogItem.name,
+        category: req.catalogItem.category?.name ?? "",
+        campaign: req.campaign?.name ?? "",
+        adet: 0,
+        kayit: 0,
+      };
+      current.adet += req.quantity ?? 0;
+      current.kayit += 1;
+      map.set(key, current);
+    }
+    return [...map.values()].sort((a, b) => b.adet - a.adet);
+  }, [catalogRequests]);
 
   function buildExportParams(includeTab = true) {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (storeId) params.set("storeId", storeId);
+    if (campaignId) params.set("campaignId", campaignId);
     if (targetType) params.set("targetType", targetType);
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
@@ -158,16 +189,26 @@ export function RequestsManager() {
     }
   }
 
-  function downloadRequestsExcel() {
+  async function downloadRequestsExcel() {
+    setExporting(true);
+    setExportError("");
     const params = buildExportParams(true);
     params.set("format", "excel");
-    // always export both sheets when downloading "all requests"
-    params.set("tab", "all");
-    window.open(`/api/v1/admin/export/requests?${params}`, "_blank");
+    params.set("tab", tab === "catalog" ? "catalog" : "all");
+    try {
+      await downloadExcelBlob(
+        `/api/v1/admin/export/requests?${params}`,
+        `talepler-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : "Excel indirilemedi");
+    } finally {
+      setExporting(false);
+    }
   }
 
   async function loadVisual() {
-    const params = new URLSearchParams({ detail: "true" });
+    const params = new URLSearchParams({ detail: "true", limit: "500" });
     if (status) params.set("status", status);
     if (storeId) params.set("storeId", storeId);
     if (targetType) params.set("targetType", targetType);
@@ -180,9 +221,12 @@ export function RequestsManager() {
   }
 
   async function loadCatalog() {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams({ limit: "500" });
     if (status) params.set("status", status);
     if (storeId) params.set("storeId", storeId);
+    if (campaignId) params.set("campaignId", campaignId);
+    if (dateFrom) params.set("dateFrom", dateFrom);
+    if (dateTo) params.set("dateTo", dateTo);
     const res = await fetch(`/api/v1/catalog-requests?${params}`);
     const data: PaginatedResponse<CatalogRequest> = await res.json();
     setCatalogRequests(data.items);
@@ -191,12 +235,20 @@ export function RequestsManager() {
 
   useEffect(() => {
     fetchSlimStores().then(setStores);
+    fetch("/api/v1/admin/catalog/campaigns?all=1")
+      .then((r) => r.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          setCampaigns(data.map((c: CampaignOption & { name: string }) => ({ id: c.id, name: c.name })));
+        }
+      })
+      .catch(() => setCampaigns([]));
   }, []);
 
   useEffect(() => {
     if (tab === "visual") loadVisual();
     else loadCatalog();
-  }, [tab, status, storeId, targetType, dateFrom, dateTo]);
+  }, [tab, status, storeId, campaignId, targetType, dateFrom, dateTo]);
 
   useEffect(() => {
     loadSizeSummary();
@@ -291,18 +343,19 @@ export function RequestsManager() {
           <h1 className="text-3xl font-bold">Talepler</h1>
           <p className="text-muted-foreground">Görsel değişim ve ürün talepleri — indirme, silme, ölçü özeti</p>
         </div>
-        <Button onClick={downloadRequestsExcel}>
+        <Button onClick={downloadRequestsExcel} disabled={exporting}>
           <Download className="mr-2 h-4 w-4" />
-          Tüm talepleri indir (Excel)
+          {exporting ? "Hazırlanıyor..." : tab === "catalog" ? "Kampanya Excel İndir" : "Tüm talepleri indir (Excel)"}
         </Button>
       </div>
+      {exportError ? <p className="text-sm text-destructive">{exportError}</p> : null}
 
       <div className="flex flex-wrap gap-2">
         <Button variant={tab === "visual" ? "default" : "outline"} onClick={() => setTab("visual")}>
           Görsel Değişim
         </Button>
         <Button variant={tab === "catalog" ? "default" : "outline"} onClick={() => setTab("catalog")}>
-          Ürün Talepleri
+          Kampanya / Ürün Talepleri
         </Button>
       </div>
 
@@ -323,6 +376,17 @@ export function RequestsManager() {
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
+        {tab === "catalog" && (
+          <div className="space-y-2">
+            <Label>Kampanya</Label>
+            <select className="flex h-10 w-full rounded-xl border px-3 text-sm" value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+              <option value="">Tümü</option>
+              {campaigns.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {tab === "visual" && (
           <div className="space-y-2">
             <Label>Hedef</Label>
@@ -346,11 +410,45 @@ export function RequestsManager() {
         </div>
       </div>
 
+      {tab === "catalog" && productTotals.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="mb-3 font-semibold">Ürün Toplamları</div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="py-2 pr-3">Kampanya</th>
+                    <th className="py-2 pr-3">Kategori</th>
+                    <th className="py-2 pr-3">Ürün</th>
+                    <th className="py-2 pr-3">Adet</th>
+                    <th className="py-2">Kayıt</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productTotals.map((row) => (
+                    <tr key={`${row.campaign}-${row.product}`} className="border-b last:border-0">
+                      <td className="py-2 pr-3">{row.campaign || "-"}</td>
+                      <td className="py-2 pr-3">{row.category || "-"}</td>
+                      <td className="py-2 pr-3">{row.product}</td>
+                      <td className="py-2 pr-3 font-medium">{row.adet}</td>
+                      <td className="py-2">{row.kayit}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {tab === "visual" && (
       <SizeSummaryPanel
         title="Ölçü Özeti (görsel talepler)"
         groups={sizeGroups}
         loading={sizeLoading}
       />
+      )}
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border bg-secondary/20 px-4 py-3">
         <label className="flex items-center gap-2 text-sm font-medium">
@@ -475,7 +573,10 @@ export function RequestsManager() {
                         <div>
                           <div className="font-semibold">{req.store.name} · {req.catalogItem.name}</div>
                           <div className="text-sm text-muted-foreground">
-                            {req.quantity ? `${req.quantity} adet · ` : ""}{formatDate(req.createdAt)}
+                            {req.campaign?.name ? `${req.campaign.name} · ` : ""}
+                            {req.catalogItem.category?.name ? `${req.catalogItem.category.name} · ` : ""}
+                            {req.quantity ? `${req.quantity} adet · ` : ""}
+                            {formatDate(req.createdAt)}
                           </div>
                           {req.note && <p className="mt-2 text-sm">{req.note}</p>}
                         </div>

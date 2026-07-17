@@ -189,7 +189,6 @@ export function AdminAdExpensesManager() {
       p.set("announcementId", announcementId);
     }
     if (link) p.set("link", link);
-    else if (announcementId) p.set("announcementId", announcementId);
     p.set("format", "excel");
     window.open(`/api/v1/admin/export/ad-expenses?${p.toString()}`, "_blank");
   }

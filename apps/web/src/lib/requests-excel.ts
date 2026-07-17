@@ -1,6 +1,10 @@
 import ExcelJS from "exceljs";
 import { prisma, ChangeRequestStatus, ChangeTargetType } from "@magaza/database";
-import { CHANGE_REQUEST_STATUS_LABELS } from "@magaza/shared";
+import {
+  CHANGE_REQUEST_STATUS_LABELS,
+  CHANGE_TARGET_TYPE_LABELS,
+  changeTargetTypeLabel,
+} from "@magaza/shared";
 import { resolveChangeRequestTargets } from "@/lib/server/resolve-change-request-target";
 import {
   groupSizesWithTolerance,
@@ -8,11 +12,14 @@ import {
   type SizeGroup,
   type SizeInput,
 } from "@/lib/size-groups";
+import { endOfDay, startOfDay } from "@/lib/catalog-campaign";
 
 export type RequestsExportFilters = {
   status?: string;
   storeId?: string;
   targetType?: string;
+  campaignId?: string;
+  categoryId?: string;
   dateFrom?: string;
   dateTo?: string;
   /** visual | catalog | all — default all */
@@ -27,6 +34,14 @@ function styleHeader(sheet: ExcelJS.Worksheet) {
     pattern: "solid",
     fgColor: { argb: "FFE2E8F0" },
   };
+}
+
+function dateFilter(dateFrom?: string, dateTo?: string) {
+  if (!dateFrom && !dateTo) return undefined;
+  const createdAt: { gte?: Date; lte?: Date } = {};
+  if (dateFrom) createdAt.gte = startOfDay(new Date(dateFrom));
+  if (dateTo) createdAt.lte = endOfDay(new Date(dateTo));
+  return createdAt;
 }
 
 export function addSizeSummarySheet(
@@ -90,6 +105,50 @@ export function addSizeSummarySheet(
   });
 }
 
+async function fetchAllChangeRequests(where: Record<string, unknown>) {
+  const pageSize = 1000;
+  const all = [];
+  for (let skip = 0; ; skip += pageSize) {
+    const batch = await prisma.changeRequest.findMany({
+      where,
+      include: { store: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+    });
+    all.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return all;
+}
+
+async function fetchAllCatalogRequests(where: Record<string, unknown>) {
+  const pageSize = 1000;
+  const all = [];
+  for (let skip = 0; ; skip += pageSize) {
+    const batch = await prisma.catalogRequest.findMany({
+      where,
+      include: {
+        store: { select: { name: true } },
+        campaign: { select: { name: true } },
+        catalogItem: {
+          select: {
+            name: true,
+            code: true,
+            category: { select: { name: true } },
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: pageSize,
+    });
+    all.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+  return all;
+}
+
 export async function generateRequestsExcelBuffer(
   filters: RequestsExportFilters
 ): Promise<Buffer> {
@@ -102,6 +161,7 @@ export async function generateRequestsExcelBuffer(
   workbook.created = new Date();
 
   const sizeInputs: SizeInput[] = [];
+  const createdAt = dateFilter(filters.dateFrom, filters.dateTo);
 
   if (includeVisual) {
     const where: {
@@ -115,19 +175,9 @@ export async function generateRequestsExcelBuffer(
     if (filters.targetType) {
       where.targetType = filters.targetType as ChangeTargetType;
     }
-    if (filters.dateFrom || filters.dateTo) {
-      where.createdAt = {};
-      if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-      if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
-    }
+    if (createdAt) where.createdAt = createdAt;
 
-    const items = await prisma.changeRequest.findMany({
-      where,
-      include: { store: { select: { name: true } } },
-      orderBy: { createdAt: "desc" },
-      take: 5000,
-    });
-
+    const items = await fetchAllChangeRequests(where);
     const targetMap = await resolveChangeRequestTargets(
       items.map((i) => ({ targetType: i.targetType, targetId: i.targetId }))
     );
@@ -158,13 +208,14 @@ export async function generateRequestsExcelBuffer(
       }
       sheet.addRow({
         store: req.store.name,
-        targetType: req.targetType,
+        targetType:
+          CHANGE_TARGET_TYPE_LABELS[req.targetType as keyof typeof CHANGE_TARGET_TYPE_LABELS] ??
+          changeTargetTypeLabel(req.targetType),
         summary: target?.summary ?? "",
         en: target?.en ?? "",
         boy: target?.boy ?? "",
         adet: target?.adet ?? "",
-        status:
-          CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
+        status: CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
         note: req.note ?? "",
         created: req.createdAt.toLocaleString("tr-TR"),
       });
@@ -175,29 +226,23 @@ export async function generateRequestsExcelBuffer(
     const where: {
       storeId?: string;
       status?: ChangeRequestStatus;
+      campaignId?: string;
       createdAt?: { gte?: Date; lte?: Date };
+      catalogItem?: { categoryId?: string };
     } = {};
     if (filters.storeId) where.storeId = filters.storeId;
     if (filters.status) where.status = filters.status as ChangeRequestStatus;
-    if (filters.dateFrom || filters.dateTo) {
-      where.createdAt = {};
-      if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-      if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
-    }
+    if (filters.campaignId) where.campaignId = filters.campaignId;
+    if (filters.categoryId) where.catalogItem = { categoryId: filters.categoryId };
+    if (createdAt) where.createdAt = createdAt;
 
-    const catalog = await prisma.catalogRequest.findMany({
-      where,
-      include: {
-        store: { select: { name: true } },
-        catalogItem: { select: { name: true, code: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 5000,
-    });
+    const catalog = await fetchAllCatalogRequests(where);
 
-    const sheet = workbook.addWorksheet("Ürün Talepleri");
-    sheet.columns = [
+    const detail = workbook.addWorksheet("Mağaza Ürün Adetleri");
+    detail.columns = [
+      { header: "Kampanya", key: "campaign", width: 24 },
       { header: "Mağaza", key: "store", width: 24 },
+      { header: "Kategori", key: "category", width: 18 },
       { header: "Ürün", key: "product", width: 28 },
       { header: "Kod", key: "code", width: 14 },
       { header: "Adet", key: "quantity", width: 10 },
@@ -205,29 +250,83 @@ export async function generateRequestsExcelBuffer(
       { header: "Not", key: "note", width: 28 },
       { header: "Tarih", key: "created", width: 20 },
     ];
-    styleHeader(sheet);
+    styleHeader(detail);
+
+    const totals = new Map<
+      string,
+      { campaign: string; category: string; product: string; code: string; adet: number; kayit: number }
+    >();
 
     for (const req of catalog) {
-      sheet.addRow({
+      detail.addRow({
+        campaign: req.campaign?.name ?? "",
         store: req.store.name,
+        category: req.catalogItem.category?.name ?? "",
         product: req.catalogItem.name,
         code: req.catalogItem.code,
-        quantity: req.quantity ?? "",
+        quantity: req.quantity ?? 0,
         status: CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
         note: req.note ?? "",
         created: req.createdAt.toLocaleString("tr-TR"),
       });
+
+      const key = `${req.campaign?.name ?? ""}|${req.catalogItem.code}`;
+      const current = totals.get(key) ?? {
+        campaign: req.campaign?.name ?? "",
+        category: req.catalogItem.category?.name ?? "",
+        product: req.catalogItem.name,
+        code: req.catalogItem.code,
+        adet: 0,
+        kayit: 0,
+      };
+      current.adet += req.quantity ?? 0;
+      current.kayit += 1;
+      totals.set(key, current);
     }
+
+    const summary = workbook.addWorksheet("Ürün Toplamları");
+    summary.columns = [
+      { header: "Kampanya", key: "campaign", width: 24 },
+      { header: "Kategori", key: "category", width: 18 },
+      { header: "Ürün", key: "product", width: 28 },
+      { header: "Kod", key: "code", width: 14 },
+      { header: "Toplam Adet", key: "adet", width: 12 },
+      { header: "Mağaza/Kayıt", key: "kayit", width: 12 },
+    ];
+    styleHeader(summary);
+    for (const row of [...totals.values()].sort((a, b) => b.adet - a.adet)) {
+      summary.addRow(row);
+    }
+    summary.addRow({});
+    summary.addRow({
+      campaign: "GENEL TOPLAM",
+      adet: [...totals.values()].reduce((s, r) => s + r.adet, 0),
+      kayit: catalog.length,
+    });
   }
 
-  const groups = groupSizesWithTolerance(sizeInputs);
-  addSizeSummarySheet(
-    workbook,
-    groups,
-    includeVisual
-      ? "Görsel taleplerin hedef ölçüleri"
-      : "Ölçü özeti (görsel talep yok)"
-  );
+  if (includeVisual) {
+    const groups = groupSizesWithTolerance(sizeInputs);
+    addSizeSummarySheet(
+      workbook,
+      groups,
+      "Görsel taleplerin hedef ölçüleri"
+    );
+  }
+
+  const meta = workbook.addWorksheet("Rapor Bilgisi");
+  meta.columns = [
+    { header: "Alan", key: "k", width: 22 },
+    { header: "Değer", key: "v", width: 48 },
+  ];
+  styleHeader(meta);
+  meta.addRow({ k: "Sekme", v: tab });
+  meta.addRow({ k: "Mağaza", v: filters.storeId ?? "Tümü" });
+  meta.addRow({ k: "Kampanya", v: filters.campaignId ?? "Tümü" });
+  meta.addRow({ k: "Durum", v: filters.status ?? "Tümü" });
+  meta.addRow({ k: "Başlangıç", v: filters.dateFrom ?? "-" });
+  meta.addRow({ k: "Bitiş", v: filters.dateTo ?? "-" });
+  meta.addRow({ k: "Oluşturma", v: new Date().toISOString() });
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
@@ -248,17 +347,10 @@ export async function fetchRequestSizeSummary(
   if (filters.targetType) {
     where.targetType = filters.targetType as ChangeTargetType;
   }
-  if (filters.dateFrom || filters.dateTo) {
-    where.createdAt = {};
-    if (filters.dateFrom) where.createdAt.gte = new Date(filters.dateFrom);
-    if (filters.dateTo) where.createdAt.lte = new Date(filters.dateTo);
-  }
+  const createdAt = dateFilter(filters.dateFrom, filters.dateTo);
+  if (createdAt) where.createdAt = createdAt;
 
-  const items = await prisma.changeRequest.findMany({
-    where,
-    select: { targetType: true, targetId: true },
-    take: 5000,
-  });
+  const items = await fetchAllChangeRequests(where);
 
   const targetMap = await resolveChangeRequestTargets(
     items.map((i) => ({ targetType: i.targetType, targetId: i.targetId }))

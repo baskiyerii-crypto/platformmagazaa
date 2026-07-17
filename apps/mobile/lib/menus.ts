@@ -6,7 +6,7 @@ export const STORE_MENU: MenuItem[] = [
   { href: "/store/avm", label: "AVM Alanları" },
   { href: "/store/outdoor", label: "Açık Hava" },
   { href: "/store/signage", label: "Mağaza İçi" },
-  { href: "/store/catalog", label: "Ürün Talepleri" },
+  { href: "/store/catalog", label: "Kampanya Adetleri" },
   { href: "/store/announcements", label: "Duyurular" },
   { href: "/store/ad-expenses", label: "Reklam Giderleri" },
   { href: "/store/support", label: "Destek" },
@@ -17,7 +17,7 @@ export const STORE_MENU: MenuItem[] = [
 export const ADMIN_MENU: MenuItem[] = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/inventory", label: "Envanter" },
-  { href: "/admin/catalog", label: "Ürün Kataloğu" },
+  { href: "/admin/catalog", label: "Kampanya Katalog" },
   { href: "/admin/stores", label: "Mağazalar" },
   { href: "/admin/announcements", label: "Duyurular" },
   { href: "/admin/ad-expenses", label: "Reklam Giderleri" },

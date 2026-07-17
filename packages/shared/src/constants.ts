@@ -61,6 +61,14 @@ export const CATALOG_ITEM_TYPE_LABELS: Record<CatalogItemType, string> = {
   VARIABLE: "Değişken",
 };
 
+export const CATALOG_CAMPAIGN_MODES = ["PERMANENT", "PERIODIC"] as const;
+export type CatalogCampaignMode = (typeof CATALOG_CAMPAIGN_MODES)[number];
+
+export const CATALOG_CAMPAIGN_MODE_LABELS: Record<CatalogCampaignMode, string> = {
+  PERMANENT: "Kalıcı",
+  PERIODIC: "Dönemlik",
+};
+
 export const INVENTORY_TYPES = ["AVM_VITRIN", "OUTDOOR", "STORE_SIGNAGE", "CATALOG_REQUEST"] as const;
 export type InventoryType = (typeof INVENTORY_TYPES)[number];
 

@@ -5,60 +5,16 @@ import Link from "next/link";
 import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
 import { fetchSlimStores } from "@/lib/stores-cache";
+import { downloadExcelBlob } from "@/lib/download-excel";
 
 type Store = { id: string; name: string };
-
-async function downloadBlob(url: string, fallbackName: string) {
-  const res = await fetch(url, { credentials: "same-origin", cache: "no-store" });
-  const contentType = res.headers.get("content-type") ?? "";
-
-  if (!res.ok) {
-    let message = `İndirme başarısız (${res.status})`;
-    if (contentType.includes("application/json")) {
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (body?.error) message = body.error;
-    }
-    throw new Error(message);
-  }
-
-  // Some proxies strip/alter Content-Type; accept binary if body looks like a file.
-  if (contentType.includes("application/json")) {
-    const body = (await res.clone().json().catch(() => null)) as { error?: string } | null;
-    throw new Error(body?.error ?? "Sunucu Excel dosyası yerine hata döndürdü");
-  }
-
-  const blob = await res.blob();
-  if (blob.size < 64) {
-    throw new Error("İndirilen Excel dosyası boş görünüyor");
-  }
-
-  const disposition = res.headers.get("content-disposition") ?? "";
-  const match = /filename="([^"]+)"/.exec(disposition);
-  const filename = match?.[1] ?? fallbackName;
-
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = objectUrl;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(objectUrl);
-
-  return blob.size;
-}
-
-function openFallback(url: string) {
-  window.open(url, "_blank", "noopener,noreferrer");
-}
 
 export function ExportPanel() {
   const [stores, setStores] = useState<Store[]>([]);
   const [storesError, setStoresError] = useState<string | null>(null);
   const [storeId, setStoreId] = useState("");
-  const [busy, setBusy] = useState<"detail" | "inventory" | null>(null);
+  const [busy, setBusy] = useState<"detail" | "inventory" | "requests" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastSize, setLastSize] = useState<number | null>(null);
 
@@ -79,53 +35,19 @@ export function ExportPanel() {
       });
   }, []);
 
-  async function downloadDetail() {
-    setBusy("detail");
+  async function runDownload(
+    kind: "detail" | "inventory" | "requests",
+    url: string,
+    filename: string
+  ) {
+    setBusy(kind);
     setError(null);
     setLastSize(null);
-    const url = storeId
-      ? `/api/v1/admin/export/excel?storeId=${encodeURIComponent(storeId)}`
-      : "/api/v1/admin/export/excel";
     try {
-      const size = await downloadBlob(
-        url,
-        storeId
-          ? `magaza-export-${storeId}.xlsx`
-          : `magaza-export-${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
+      const size = await downloadExcelBlob(url, filename);
       setLastSize(size);
     } catch (e) {
-      openFallback(url);
-      setError(
-        e instanceof Error
-          ? `${e.message} — yeni sekmede indirme denendi`
-          : "Excel indirilemedi — yeni sekmede indirme denendi"
-      );
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function downloadInventory() {
-    setBusy("inventory");
-    setError(null);
-    setLastSize(null);
-    const p = new URLSearchParams({ format: "excel" });
-    if (storeId) p.set("storeId", storeId);
-    const url = `/api/v1/admin/export/inventory?${p.toString()}`;
-    try {
-      const size = await downloadBlob(
-        url,
-        `envanter-${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
-      setLastSize(size);
-    } catch (e) {
-      openFallback(url);
-      setError(
-        e instanceof Error
-          ? `${e.message} — yeni sekmede indirme denendi`
-          : "Excel indirilemedi — yeni sekmede indirme denendi"
-      );
+      setError(e instanceof Error ? e.message : "Excel indirilemedi");
     } finally {
       setBusy(null);
     }
@@ -135,7 +57,7 @@ export function ExportPanel() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Excel Export</h1>
-        <p className="text-muted-foreground">Detaylı mağaza raporu ve envanter indirme</p>
+        <p className="text-muted-foreground">Detaylı mağaza, envanter ve kampanya talep raporları</p>
       </div>
 
       <Card className="max-w-xl">
@@ -164,13 +86,25 @@ export function ExportPanel() {
           <CardTitle>Detaylı Mağaza Raporu</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button onClick={downloadDetail} disabled={busy !== null}>
+          <Button
+            onClick={() =>
+              runDownload(
+                "detail",
+                storeId
+                  ? `/api/v1/admin/export/excel?storeId=${encodeURIComponent(storeId)}`
+                  : "/api/v1/admin/export/excel",
+                storeId
+                  ? `magaza-export-${storeId}.xlsx`
+                  : `magaza-export-${new Date().toISOString().slice(0, 10)}.xlsx`
+              )
+            }
+            disabled={busy !== null}
+          >
             <Download className="mr-2 h-4 w-4" />
             {busy === "detail" ? "Hazırlanıyor..." : "Detaylı Excel İndir"}
           </Button>
           <p className="text-sm text-muted-foreground">
-            AVM Ücretsiz / Ücretli, Açık Hava, Mağaza İçi, Talepler, <strong>Özet</strong> ve Ölçü
-            Özeti sayfaları. Özet sayfasında kaç kayıt yazıldığı görünür.
+            AVM, Açık Hava, Mağaza İçi, Görsel Talepler, Kampanya Talepleri, Özet ve Ölçü Özeti.
           </p>
         </CardContent>
       </Card>
@@ -180,12 +114,52 @@ export function ExportPanel() {
           <CardTitle>Envanter Excel</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Button variant="secondary" onClick={downloadInventory} disabled={busy !== null}>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              const p = new URLSearchParams({ format: "excel" });
+              if (storeId) p.set("storeId", storeId);
+              return runDownload(
+                "inventory",
+                `/api/v1/admin/export/inventory?${p.toString()}`,
+                `envanter-${new Date().toISOString().slice(0, 10)}.xlsx`
+              );
+            }}
+            disabled={busy !== null}
+          >
             <Download className="mr-2 h-4 w-4" />
             {busy === "inventory" ? "Hazırlanıyor..." : "Envanter Excel İndir"}
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle>Kampanya / Talepler Excel</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            variant="outline"
+            onClick={() => {
+              const p = new URLSearchParams({ format: "excel", tab: "all" });
+              if (storeId) p.set("storeId", storeId);
+              return runDownload(
+                "requests",
+                `/api/v1/admin/export/requests?${p.toString()}`,
+                `talepler-${new Date().toISOString().slice(0, 10)}.xlsx`
+              );
+            }}
+            disabled={busy !== null}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            {busy === "requests" ? "Hazırlanıyor..." : "Talepler Excel İndir"}
+          </Button>
           <p className="text-sm text-muted-foreground">
-            Admin envanter listesiyle aynı kayıtları tek sayfada indirir.
+            Görsel talepler + mağaza ürün adetleri + ürün toplamları. Daha fazla filtre için{" "}
+            <Link href="/admin/requests" className="font-medium text-primary hover:underline">
+              Talepler
+            </Link>{" "}
+            sayfasını kullanın.
           </p>
         </CardContent>
       </Card>
@@ -193,8 +167,8 @@ export function ExportPanel() {
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
       {lastSize != null && !error ? (
         <p className="text-sm text-muted-foreground">
-          İndirildi · {(lastSize / 1024).toFixed(1)} KB — Excel içindeki <strong>Özet</strong> sayfasına
-          bakın; kayıt sayısı 0 ise veritabanında envanter yok demektir.
+          İndirildi · {(lastSize / 1024).toFixed(1)} KB — Excel içindeki <strong>Özet</strong> /
+          <strong> Rapor Bilgisi</strong> sayfasına bakın.
         </p>
       ) : null}
 

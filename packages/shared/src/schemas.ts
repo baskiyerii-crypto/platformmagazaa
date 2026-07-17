@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { AVM_VITRIN_KINDS, CHANGE_REQUEST_STATUSES, CHANGE_TARGET_TYPES, USER_ROLES, CATALOG_ITEM_TYPES } from "./constants";
+import {
+  AVM_VITRIN_KINDS,
+  CHANGE_REQUEST_STATUSES,
+  CHANGE_TARGET_TYPES,
+  USER_ROLES,
+  CATALOG_ITEM_TYPES,
+  CATALOG_CAMPAIGN_MODES,
+} from "./constants";
 
 export const loginSchema = z.object({
   username: z.string().trim().min(1, "Kullanıcı adı gerekli"),
@@ -156,10 +163,45 @@ export const updateChangeRequestStatusSchema = z.object({
   adminNote: z.string().optional().nullable(),
 });
 
+export const catalogCampaignBaseSchema = z.object({
+  name: z.string().min(1, "Kampanya adı gerekli"),
+  description: z.string().optional().nullable(),
+  mode: z.enum(CATALOG_CAMPAIGN_MODES).default("PERMANENT"),
+  startsAt: z.union([z.string(), z.date(), z.null()]).optional(),
+  endsAt: z.union([z.string(), z.date(), z.null()]).optional(),
+  active: z.boolean().default(true),
+  sortOrder: z.number().int().default(0),
+});
+
+export const createCatalogCampaignSchema = catalogCampaignBaseSchema.superRefine((data, ctx) => {
+  if (data.mode === "PERIODIC") {
+    if (!data.startsAt || !data.endsAt) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dönemlik kampanya için başlangıç ve bitiş tarihi gerekli",
+        path: ["startsAt"],
+      });
+    }
+  }
+});
+
+export const updateCatalogCampaignSchema = catalogCampaignBaseSchema.partial();
+
+export const createCatalogCategorySchema = z.object({
+  campaignId: z.string().min(1, "Kampanya seçin"),
+  name: z.string().min(1, "Kategori adı gerekli"),
+  sortOrder: z.number().int().default(0),
+  active: z.boolean().default(true),
+});
+
+export const updateCatalogCategorySchema = createCatalogCategorySchema.partial();
+
 export const createCatalogItemSchema = z.object({
   name: z.string().min(1, "Ürün adı gerekli"),
   code: z.string().min(1, "Kod gerekli"),
-  type: z.enum(CATALOG_ITEM_TYPES),
+  type: z.enum(CATALOG_ITEM_TYPES).default("FIXED"),
+  campaignId: z.string().min(1, "Kampanya seçin"),
+  categoryId: z.string().min(1, "Kategori seçin"),
   referenceImageUrl: z.string().optional().nullable(),
   description: z.string().optional().nullable(),
   active: z.boolean().default(true),
@@ -168,19 +210,31 @@ export const createCatalogItemSchema = z.object({
 
 export const updateCatalogItemSchema = createCatalogItemSchema.partial();
 
-export const createCatalogRequestSchema = z
-  .object({
-    catalogItemId: z.string().min(1, "Ürün seçin"),
-    quantity: z
-      .number({ required_error: "Adet zorunlu", invalid_type_error: "Geçerli bir adet girin" })
-      .int("Adet tam sayı olmalı")
-      .min(1, "Adet en az 1 olmalı"),
-    note: z.string().optional().nullable(),
-    storeImageUrl: z.string().optional().nullable(),
-  })
-  .superRefine((data, ctx) => {
-    // quantity validation done at API with catalog item type
-  });
+export const createCatalogRequestSchema = z.object({
+  catalogItemId: z.string().min(1, "Ürün seçin"),
+  quantity: z
+    .number({ required_error: "Adet zorunlu", invalid_type_error: "Geçerli bir adet girin" })
+    .int("Adet tam sayı olmalı")
+    .min(1, "Adet en az 1 olmalı"),
+  note: z.string().optional().nullable(),
+  storeImageUrl: z.string().optional().nullable(),
+  campaignId: z.string().optional().nullable(),
+});
+
+export const bulkCatalogRequestSchema = z.object({
+  campaignId: z.string().min(1, "Kampanya seçin"),
+  items: z
+    .array(
+      z.object({
+        catalogItemId: z.string().min(1),
+        quantity: z
+          .number({ required_error: "Adet zorunlu", invalid_type_error: "Geçerli bir adet girin" })
+          .int("Adet tam sayı olmalı")
+          .min(1, "Adet en az 1 olmalı"),
+      })
+    )
+    .min(1, "En az bir ürün için adet girin"),
+});
 
 export const updateCatalogRequestStatusSchema = z.object({
   status: z.enum(CHANGE_REQUEST_STATUSES),
@@ -281,3 +335,6 @@ export type StoreSignageEntryInput = z.infer<typeof storeSignageEntrySchema>;
 export type CreateChangeRequestInput = z.infer<typeof createChangeRequestSchema>;
 export type CreateCatalogItemInput = z.infer<typeof createCatalogItemSchema>;
 export type CreateCatalogRequestInput = z.infer<typeof createCatalogRequestSchema>;
+export type CreateCatalogCampaignInput = z.infer<typeof createCatalogCampaignSchema>;
+export type CreateCatalogCategoryInput = z.infer<typeof createCatalogCategorySchema>;
+export type BulkCatalogRequestInput = z.infer<typeof bulkCatalogRequestSchema>;

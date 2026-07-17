@@ -4,6 +4,7 @@ import {
   fetchRequestSizeSummary,
   generateRequestsExcelBuffer,
 } from "@/lib/requests-excel";
+import { SIZE_TOLERANCE_CM } from "@/lib/size-groups";
 
 export const GET = withAuth(
   async (request) => {
@@ -12,6 +13,8 @@ export const GET = withAuth(
       status: searchParams.get("status") ?? undefined,
       storeId: searchParams.get("storeId") ?? undefined,
       targetType: searchParams.get("targetType") ?? undefined,
+      campaignId: searchParams.get("campaignId") ?? undefined,
+      categoryId: searchParams.get("categoryId") ?? undefined,
       dateFrom: searchParams.get("dateFrom") ?? undefined,
       dateTo: searchParams.get("dateTo") ?? undefined,
       tab: searchParams.get("tab") ?? "all",
@@ -20,7 +23,7 @@ export const GET = withAuth(
     if (searchParams.get("summaryOnly") === "1") {
       const groups = await fetchRequestSizeSummary(filters);
       return NextResponse.json({
-        toleranceCm: 3,
+        toleranceCm: SIZE_TOLERANCE_CM,
         measureCount: groups.length,
         totalAdet: groups.reduce((s, g) => s + g.toplamAdet, 0),
         groups,

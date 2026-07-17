@@ -49,6 +49,11 @@ enum CatalogItemType {
   VARIABLE
 }
 
+enum CatalogCampaignMode {
+  PERMANENT
+  PERIODIC
+}
+
 enum NotificationType {
   CHANGE_REQUEST
   CATALOG_REQUEST
@@ -365,11 +370,51 @@ model WebPushSubscription {
   @@index([userId])
 }
 
+model CatalogCampaign {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  mode        CatalogCampaignMode @default(PERMANENT)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  active      Boolean             @default(true)
+  sortOrder   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  categories CatalogCategory[]
+  items      CatalogItem[]
+  requests   CatalogRequest[]
+
+  @@index([active, sortOrder])
+  @@index([mode])
+}
+
+model CatalogCategory {
+  id         String          @id @default(cuid())
+  campaignId String
+  campaign   CatalogCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  name       String
+  sortOrder  Int             @default(0)
+  active     Boolean         @default(true)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  items CatalogItem[]
+
+  @@index([campaignId, sortOrder])
+  @@index([active])
+}
+
 model CatalogItem {
   id                 String          @id @default(cuid())
   name               String
   code               String          @unique
   type               CatalogItemType
+  campaignId         String?
+  campaign           CatalogCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  categoryId         String?
+  category           CatalogCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   referenceImageUrl  String?
   description        String?
   active             Boolean         @default(true)
@@ -378,12 +423,18 @@ model CatalogItem {
   updatedAt          DateTime        @updatedAt
 
   requests CatalogRequest[]
+
+  @@index([campaignId, sortOrder])
+  @@index([categoryId])
+  @@index([active])
 }
 
 model CatalogRequest {
   id            String              @id @default(cuid())
   storeId       String
   store         Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  campaignId    String?
+  campaign      CatalogCampaign?    @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   catalogItemId String
   catalogItem   CatalogItem         @relation(fields: [catalogItemId], references: [id])
   quantity      Int?
@@ -400,8 +451,10 @@ model CatalogRequest {
   @@index([storeId])
   @@index([status])
   @@index([catalogItemId])
+  @@index([campaignId])
   @@index([createdAt])
   @@index([storeId, status])
+  @@index([storeId, campaignId])
 }
 
 model CatalogRequestHistory {

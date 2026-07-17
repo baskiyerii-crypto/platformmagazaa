@@ -1,7 +1,13 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@magaza/database";
+import {
+  CHANGE_REQUEST_STATUS_LABELS,
+  CHANGE_TARGET_TYPE_LABELS,
+  changeTargetTypeLabel,
+} from "@magaza/shared";
 import { groupSizesWithTolerance, type SizeInput } from "@/lib/size-groups";
 import { addSizeSummarySheet } from "@/lib/requests-excel";
+import { toAbsoluteMediaUrl } from "@/lib/export-images";
 
 function styleHeader(sheet: ExcelJS.Worksheet, rowNumber = 1) {
   const row = sheet.getRow(rowNumber);
@@ -39,7 +45,7 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
 
   const storeWhere = storeId ? { id: storeId } : undefined;
 
-  const [vitrins, outdoors, signages, requests, storeCount] = await Promise.all([
+  const [vitrins, outdoors, signages, requests, catalogRequests, storeCount] = await Promise.all([
     prisma.avmVitrin.findMany({
       where: storeWhere ? { avmEntry: { storeId } } : undefined,
       include: {
@@ -73,6 +79,21 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
     prisma.changeRequest.findMany({
       where: storeWhere ? { storeId } : undefined,
       include: { store: { select: { name: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    prisma.catalogRequest.findMany({
+      where: storeWhere ? { storeId } : undefined,
+      include: {
+        store: { select: { name: true } },
+        campaign: { select: { name: true } },
+        catalogItem: {
+          select: {
+            name: true,
+            code: true,
+            category: { select: { name: true } },
+          },
+        },
+      },
       orderBy: { createdAt: "desc" },
     }),
     prisma.store.count({ where: storeWhere }),
@@ -113,9 +134,16 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
 
   const talepSheet = addSheet(
     workbook,
-    "Talepler",
+    "Görsel Talepler",
     ["Mağaza", "Hedef", "Durum", "Talep Tarihi", "Tamamlanma", "Not"],
     [22, 14, 16, 18, 18, 28]
+  );
+
+  const urunTalepSheet = addSheet(
+    workbook,
+    "Kampanya Talepleri",
+    ["Mağaza", "Kampanya", "Kategori", "Ürün", "Kod", "Adet", "Durum", "Tarih"],
+    [22, 20, 16, 24, 14, 8, 18, 18]
   );
 
   const ozetSheet = addSheet(
@@ -149,7 +177,7 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
       v.kind === "EKSTRA_ALAN" ? "" : (v.camBoy ?? ""),
       videoAdet || "",
       videoSummary,
-      v.gorselUrl ?? "",
+      v.gorselUrl ? toAbsoluteMediaUrl(v.gorselUrl) ?? v.gorselUrl : "",
       v.updatedAt.toISOString(),
     ]);
 
@@ -226,7 +254,7 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
       o.boy,
       o.adet,
       o.note ?? "",
-      o.gorselUrl ?? "",
+      o.gorselUrl ? toAbsoluteMediaUrl(o.gorselUrl) ?? o.gorselUrl : "",
       o.updatedAt.toISOString(),
     ]);
     sizeInputs.push({
@@ -246,7 +274,7 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
       s.boy,
       s.adet,
       s.note ?? "",
-      s.gorselUrl ?? "",
+      s.gorselUrl ? toAbsoluteMediaUrl(s.gorselUrl) ?? s.gorselUrl : "",
       s.updatedAt.toISOString(),
     ]);
     sizeInputs.push({
@@ -260,11 +288,25 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
   for (const req of requests) {
     talepSheet.addRow([
       req.store.name,
-      req.targetType,
-      req.status,
+      CHANGE_TARGET_TYPE_LABELS[req.targetType as keyof typeof CHANGE_TARGET_TYPE_LABELS] ??
+        changeTargetTypeLabel(req.targetType),
+      CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
       req.createdAt.toISOString(),
       req.completedAt?.toISOString() ?? "",
       req.note ?? "",
+    ]);
+  }
+
+  for (const req of catalogRequests) {
+    urunTalepSheet.addRow([
+      req.store.name,
+      req.campaign?.name ?? "",
+      req.catalogItem.category?.name ?? "",
+      req.catalogItem.name,
+      req.catalogItem.code,
+      req.quantity ?? 0,
+      CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
+      req.createdAt.toISOString(),
     ]);
   }
 
@@ -273,14 +315,16 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
     videoOnlyEntries.length +
     outdoors.length +
     signages.length +
-    requests.length;
+    requests.length +
+    catalogRequests.length;
 
   ozetSheet.addRow(["Mağaza sayısı", storeCount]);
   ozetSheet.addRow(["AVM vitrin / ekstra", vitrins.length]);
   ozetSheet.addRow(["AVM yalnızca video", videoOnlyEntries.length]);
   ozetSheet.addRow(["Açık hava", outdoors.length]);
   ozetSheet.addRow(["Mağaza içi", signages.length]);
-  ozetSheet.addRow(["Talepler", requests.length]);
+  ozetSheet.addRow(["Görsel talepler", requests.length]);
+  ozetSheet.addRow(["Kampanya / ürün talepleri", catalogRequests.length]);
   ozetSheet.addRow(["Toplam satır", dataRowCount]);
   ozetSheet.addRow([
     "Filtre",

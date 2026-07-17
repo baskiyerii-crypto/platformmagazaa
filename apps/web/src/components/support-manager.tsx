@@ -299,23 +299,11 @@ export function AdminSupportManager() {
       const params = new URLSearchParams();
       if (storeId) params.set("storeId", storeId);
       if (scope !== "all") params.set("tab", scope);
-      const res = await fetch(`/api/v1/admin/export/support-tickets?${params}`, {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Excel indirilemedi");
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `destek-talepleri-${scope}-${new Date().toISOString().slice(0, 10)}.xlsx`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const { downloadExcelBlob } = await import("@/lib/download-excel");
+      await downloadExcelBlob(
+        `/api/v1/admin/export/support-tickets?${params}`,
+        `destek-talepleri-${scope}-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Excel indirilemedi");
     } finally {
