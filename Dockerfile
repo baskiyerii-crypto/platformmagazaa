@@ -24,6 +24,31 @@ ENV NODE_ENV=production
 RUN pnpm --filter @magaza/web build \
   && rm -rf apps/web/.next/cache apps/mobile node_modules/.cache
 
+# Extract only Prisma engine + client into a tiny folder (never COPY full .pnpm into runner)
+RUN set -e; \
+  ENGINE=$(find /app/node_modules/.pnpm -name 'libquery_engine-debian-openssl-3.0.x.so.node' | head -n 1); \
+  if [ -z "$ENGINE" ]; then \
+    echo "FATAL: Prisma debian query engine not found"; \
+    find /app/node_modules -name 'libquery_engine*' || true; \
+    exit 1; \
+  fi; \
+  CLIENT_SRC=$(dirname "$ENGINE"); \
+  PKG_REL=$(echo "$CLIENT_SRC" | sed 's|^/app/node_modules/.pnpm/||'); \
+  mkdir -p "/prisma-runtime/pnpm/$PKG_REL" \
+    /prisma-runtime/dot-prisma \
+    /prisma-runtime/next-server; \
+  cp -a "$CLIENT_SRC/." "/prisma-runtime/pnpm/$PKG_REL/"; \
+  cp -a "$CLIENT_SRC/." /prisma-runtime/dot-prisma/; \
+  cp "$ENGINE" /prisma-runtime/next-server/; \
+  PRISMA_CLIENT_JS=$(find /app/node_modules/.pnpm -type d -path '*/node_modules/@prisma/client' | head -n 1); \
+  if [ -n "$PRISMA_CLIENT_JS" ]; then \
+    DEST_REL=$(echo "$PRISMA_CLIENT_JS" | sed 's|^/app/node_modules/.pnpm/||'); \
+    mkdir -p "/prisma-runtime/pnpm/$DEST_REL"; \
+    cp -a "$PRISMA_CLIENT_JS/." "/prisma-runtime/pnpm/$DEST_REL/"; \
+  fi; \
+  printf '%s' "$PKG_REL" > /prisma-runtime/engine-pkg-rel.txt; \
+  echo "[docker] Prisma engine staged: $(basename "$ENGINE")"
+
 FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -52,35 +77,19 @@ COPY --from=builder /app/apps/web/public ./apps/web/public
 COPY --from=builder /app/packages/database/prisma ./prisma
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 
-# Prisma Query Engine: Next standalone + pnpm often omits *.so.node.
-# Without this, /api/health/db and login return engine-not-found → 401.
-COPY --from=builder /app/node_modules/.pnpm /tmp/pnpm-mods
+# Small Prisma runtime only — full .pnpm must NOT land in this image (export/disk fail)
+COPY --from=builder /prisma-runtime /tmp/prisma-runtime
 RUN set -e; \
-  ENGINE=$(find /tmp/pnpm-mods -name 'libquery_engine-debian-openssl-3.0.x.so.node' | head -n 1); \
-  if [ -z "$ENGINE" ]; then \
-    echo "FATAL: Prisma debian query engine not found in builder node_modules"; \
-    find /tmp/pnpm-mods -name 'libquery_engine*' || true; \
-    exit 1; \
-  fi; \
-  CLIENT_SRC=$(dirname "$ENGINE"); \
-  # Path Prisma Client looks for under pnpm (see health/db error)
-  PKG_REL=$(echo "$CLIENT_SRC" | sed 's|^/tmp/pnpm-mods/||'); \
-  mkdir -p "/app/node_modules/.pnpm/$PKG_REL"; \
-  cp -a "$CLIENT_SRC/." "/app/node_modules/.pnpm/$PKG_REL/"; \
-  # Also place engines where Next/Prisma fallbacks search
-  mkdir -p /app/node_modules/.prisma/client /app/apps/web/.next/server /app/apps/web/.prisma/client; \
-  cp -a "$CLIENT_SRC/." /app/node_modules/.prisma/client/; \
-  cp -a "$CLIENT_SRC/." /app/apps/web/.prisma/client/; \
-  cp "$ENGINE" /app/apps/web/.next/server/; \
-  # @prisma/client package (JS) next to nested .prisma if present
-  PRISMA_CLIENT_JS=$(find /tmp/pnpm-mods -type d -path '*/node_modules/@prisma/client' | head -n 1); \
-  if [ -n "$PRISMA_CLIENT_JS" ]; then \
-    DEST_JS=$(echo "$PRISMA_CLIENT_JS" | sed 's|^/tmp/pnpm-mods/|/app/node_modules/.pnpm/|'); \
-    mkdir -p "$DEST_JS"; \
-    cp -a "$PRISMA_CLIENT_JS/." "$DEST_JS/"; \
-  fi; \
-  rm -rf /tmp/pnpm-mods; \
-  echo "[docker] Prisma engine installed: $(basename "$ENGINE")"
+  mkdir -p /app/node_modules/.pnpm \
+    /app/node_modules/.prisma/client \
+    /app/apps/web/.next/server \
+    /app/apps/web/.prisma/client; \
+  cp -a /tmp/prisma-runtime/pnpm/. /app/node_modules/.pnpm/; \
+  cp -a /tmp/prisma-runtime/dot-prisma/. /app/node_modules/.prisma/client/; \
+  cp -a /tmp/prisma-runtime/dot-prisma/. /app/apps/web/.prisma/client/; \
+  cp -a /tmp/prisma-runtime/next-server/. /app/apps/web/.next/server/; \
+  rm -rf /tmp/prisma-runtime; \
+  echo "[docker] Prisma engine installed from staged runtime"
 
 RUN chmod +x /app/docker-entrypoint.sh \
   && mkdir -p /app/apps/web/public /app/uploads
