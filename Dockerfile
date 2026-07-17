@@ -50,6 +50,37 @@ COPY --from=builder /app/apps/web/.next/standalone ./
 COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /app/packages/database/prisma ./prisma
 COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
+
+# Prisma Query Engine: Next standalone + pnpm often omits *.so.node.
+# Without this, /api/health/db and login return engine-not-found → 401.
+COPY --from=builder /app/node_modules/.pnpm /tmp/pnpm-mods
+RUN set -e; \
+  ENGINE=$(find /tmp/pnpm-mods -name 'libquery_engine-debian-openssl-3.0.x.so.node' | head -n 1); \
+  if [ -z "$ENGINE" ]; then \
+    echo "FATAL: Prisma debian query engine not found in builder node_modules"; \
+    find /tmp/pnpm-mods -name 'libquery_engine*' || true; \
+    exit 1; \
+  fi; \
+  CLIENT_SRC=$(dirname "$ENGINE"); \
+  # Path Prisma Client looks for under pnpm (see health/db error)
+  PKG_REL=$(echo "$CLIENT_SRC" | sed 's|^/tmp/pnpm-mods/||'); \
+  mkdir -p "/app/node_modules/.pnpm/$PKG_REL"; \
+  cp -a "$CLIENT_SRC/." "/app/node_modules/.pnpm/$PKG_REL/"; \
+  # Also place engines where Next/Prisma fallbacks search
+  mkdir -p /app/node_modules/.prisma/client /app/apps/web/.next/server /app/apps/web/.prisma/client; \
+  cp -a "$CLIENT_SRC/." /app/node_modules/.prisma/client/; \
+  cp -a "$CLIENT_SRC/." /app/apps/web/.prisma/client/; \
+  cp "$ENGINE" /app/apps/web/.next/server/; \
+  # @prisma/client package (JS) next to nested .prisma if present
+  PRISMA_CLIENT_JS=$(find /tmp/pnpm-mods -type d -path '*/node_modules/@prisma/client' | head -n 1); \
+  if [ -n "$PRISMA_CLIENT_JS" ]; then \
+    DEST_JS=$(echo "$PRISMA_CLIENT_JS" | sed 's|^/tmp/pnpm-mods/|/app/node_modules/.pnpm/|'); \
+    mkdir -p "$DEST_JS"; \
+    cp -a "$PRISMA_CLIENT_JS/." "$DEST_JS/"; \
+  fi; \
+  rm -rf /tmp/pnpm-mods; \
+  echo "[docker] Prisma engine installed: $(basename "$ENGINE")"
+
 RUN chmod +x /app/docker-entrypoint.sh \
   && mkdir -p /app/apps/web/public /app/uploads
 
