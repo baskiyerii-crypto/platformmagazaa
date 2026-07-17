@@ -141,6 +141,13 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
 
   const urunTalepSheet = addSheet(
     workbook,
+    "Ürün Talepleri",
+    ["Mağaza", "Ürün", "Kod", "Adet", "Durum", "Tarih"],
+    [22, 24, 14, 8, 18, 18]
+  );
+
+  const kampanyaTalepSheet = addSheet(
+    workbook,
     "Kampanya Talepleri",
     ["Mağaza", "Kampanya", "Kategori", "Ürün", "Kod", "Adet", "Durum", "Tarih"],
     [22, 20, 16, 24, 14, 8, 18, 18]
@@ -298,16 +305,27 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
   }
 
   for (const req of catalogRequests) {
-    urunTalepSheet.addRow([
-      req.store.name,
-      req.campaign?.name ?? "",
-      req.catalogItem.category?.name ?? "",
-      req.catalogItem.name,
-      req.catalogItem.code,
-      req.quantity ?? 0,
-      CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
-      req.createdAt.toISOString(),
-    ]);
+    if (req.campaignId) {
+      kampanyaTalepSheet.addRow([
+        req.store.name,
+        req.campaign?.name ?? "",
+        req.catalogItem.category?.name ?? "",
+        req.catalogItem.name,
+        req.catalogItem.code,
+        req.quantity ?? 0,
+        CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
+        req.createdAt.toISOString(),
+      ]);
+    } else {
+      urunTalepSheet.addRow([
+        req.store.name,
+        req.catalogItem.name,
+        req.catalogItem.code,
+        req.quantity ?? 0,
+        CHANGE_REQUEST_STATUS_LABELS[req.status] ?? req.status,
+        req.createdAt.toISOString(),
+      ]);
+    }
   }
 
   const dataRowCount =
@@ -324,7 +342,8 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
   ozetSheet.addRow(["Açık hava", outdoors.length]);
   ozetSheet.addRow(["Mağaza içi", signages.length]);
   ozetSheet.addRow(["Görsel talepler", requests.length]);
-  ozetSheet.addRow(["Kampanya / ürün talepleri", catalogRequests.length]);
+  ozetSheet.addRow(["Ürün talepleri", catalogRequests.filter((r) => !r.campaignId).length]);
+  ozetSheet.addRow(["Kampanya talepleri", catalogRequests.filter((r) => r.campaignId).length]);
   ozetSheet.addRow(["Toplam satır", dataRowCount]);
   ozetSheet.addRow([
     "Filtre",

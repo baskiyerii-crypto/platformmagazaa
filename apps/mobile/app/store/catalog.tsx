@@ -81,7 +81,7 @@ export default function StoreCatalog() {
     try {
       const [campaignData, reqs] = await Promise.all([
         api.getCached<Campaign[]>("/api/v1/admin/catalog/campaigns", 60_000),
-        api.getCached<PaginatedResponse<CatalogRequest>>("/api/v1/catalog-requests?limit=100", 30_000),
+        api.getCached<PaginatedResponse<CatalogRequest>>("/api/v1/catalog-requests?scope=campaign&limit=100", 30_000),
       ]);
       const open = campaignData.filter((c) => c.openForRequests !== false);
       setCampaigns(open);

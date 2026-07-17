@@ -49,6 +49,7 @@ export const GET = withAuth(async (request, auth) => {
   const catalogItemId = searchParams.get("catalogItemId");
   const campaignId = searchParams.get("campaignId");
   const categoryId = searchParams.get("categoryId");
+  const scope = searchParams.get("scope");
   const dateFrom = searchParams.get("dateFrom");
   const dateTo = searchParams.get("dateTo");
   const detail = searchParams.get("detail") === "true";
@@ -57,7 +58,7 @@ export const GET = withAuth(async (request, auth) => {
     storeId?: string;
     status?: ChangeRequestStatus;
     catalogItemId?: string;
-    campaignId?: string;
+    campaignId?: string | { not: null } | null;
     createdAt?: { gte?: Date; lte?: Date };
     catalogItem?: { categoryId?: string };
   } = {};
@@ -72,6 +73,8 @@ export const GET = withAuth(async (request, auth) => {
   if (status) where.status = status as ChangeRequestStatus;
   if (catalogItemId) where.catalogItemId = catalogItemId;
   if (campaignId) where.campaignId = campaignId;
+  else if (scope === "campaign") where.campaignId = { not: null };
+  else if (scope === "product") where.campaignId = null;
   if (categoryId) where.catalogItem = { categoryId };
   if (dateFrom || dateTo) {
     where.createdAt = {};
@@ -118,10 +121,7 @@ async function createSingleRequest(args: {
   if (!catalogItem || !catalogItem.active) {
     throw new Error("Ürün bulunamadı");
   }
-  if (!catalogItem.campaignId || !catalogItem.campaign) {
-    throw new Error("Ürün bir kampanyaya bağlı değil");
-  }
-  if (!isCampaignOpenForRequests(catalogItem.campaign)) {
+  if (catalogItem.campaign && !isCampaignOpenForRequests(catalogItem.campaign)) {
     throw new Error("Bu kampanya şu an talep kabul etmiyor");
   }
 
@@ -138,7 +138,7 @@ async function createSingleRequest(args: {
       where: { id: openRequest.id },
       data: {
         quantity: args.quantity,
-        campaignId: catalogItem.campaignId,
+        campaignId: catalogItem.campaignId ?? null,
         note: args.note,
         ...(args.storeImageUrl ? { storeImageUrl: args.storeImageUrl } : {}),
       },
@@ -158,7 +158,7 @@ async function createSingleRequest(args: {
   const catalogRequest = await prisma.catalogRequest.create({
     data: {
       storeId: args.storeId,
-      campaignId: catalogItem.campaignId,
+      campaignId: catalogItem.campaignId ?? null,
       catalogItemId: args.catalogItemId,
       quantity: args.quantity,
       note: args.note,

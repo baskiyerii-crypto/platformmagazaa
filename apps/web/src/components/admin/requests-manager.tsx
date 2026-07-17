@@ -70,8 +70,6 @@ type CatalogRequest = {
   createdAt: string;
 };
 
-type CampaignOption = { id: string; name: string };
-
 type Store = { id: string; name: string };
 
 function RequestImages({ images, target }: { images?: RequestImage[]; target?: ChangeRequestTarget | null }) {
@@ -128,10 +126,8 @@ export function RequestsManager() {
   const [visualRequests, setVisualRequests] = useState<VisualRequest[]>([]);
   const [catalogRequests, setCatalogRequests] = useState<CatalogRequest[]>([]);
   const [stores, setStores] = useState<Store[]>([]);
-  const [campaigns, setCampaigns] = useState<CampaignOption[]>([]);
   const [status, setStatus] = useState("");
   const [storeId, setStoreId] = useState("");
-  const [campaignId, setCampaignId] = useState("");
   const [targetType, setTargetType] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -164,10 +160,10 @@ export function RequestsManager() {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (storeId) params.set("storeId", storeId);
-    if (campaignId) params.set("campaignId", campaignId);
     if (targetType) params.set("targetType", targetType);
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
+    if (tab === "catalog") params.set("scope", "product");
     if (includeTab) params.set("tab", tab === "catalog" ? "catalog" : tab === "visual" ? "visual" : "all");
     return params;
   }
@@ -221,10 +217,9 @@ export function RequestsManager() {
   }
 
   async function loadCatalog() {
-    const params = new URLSearchParams({ limit: "500" });
+    const params = new URLSearchParams({ limit: "500", scope: "product" });
     if (status) params.set("status", status);
     if (storeId) params.set("storeId", storeId);
-    if (campaignId) params.set("campaignId", campaignId);
     if (dateFrom) params.set("dateFrom", dateFrom);
     if (dateTo) params.set("dateTo", dateTo);
     const res = await fetch(`/api/v1/catalog-requests?${params}`);
@@ -235,20 +230,12 @@ export function RequestsManager() {
 
   useEffect(() => {
     fetchSlimStores().then(setStores);
-    fetch("/api/v1/admin/catalog/campaigns?all=1")
-      .then((r) => r.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          setCampaigns(data.map((c: CampaignOption & { name: string }) => ({ id: c.id, name: c.name })));
-        }
-      })
-      .catch(() => setCampaigns([]));
   }, []);
 
   useEffect(() => {
     if (tab === "visual") loadVisual();
     else loadCatalog();
-  }, [tab, status, storeId, campaignId, targetType, dateFrom, dateTo]);
+  }, [tab, status, storeId, targetType, dateFrom, dateTo]);
 
   useEffect(() => {
     loadSizeSummary();
@@ -376,17 +363,6 @@ export function RequestsManager() {
             {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
         </div>
-        {tab === "catalog" && (
-          <div className="space-y-2">
-            <Label>Kampanya</Label>
-            <select className="flex h-10 w-full rounded-xl border px-3 text-sm" value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
-              <option value="">Tümü</option>
-              {campaigns.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-          </div>
-        )}
         {tab === "visual" && (
           <div className="space-y-2">
             <Label>Hedef</Label>

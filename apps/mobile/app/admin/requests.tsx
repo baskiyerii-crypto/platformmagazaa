@@ -126,6 +126,7 @@ export default function AdminRequests() {
         const data = await api.get<PaginatedResponse<ChangeReq>>(`/api/v1/change-requests?${params}`);
         setChangeRequests(data.items);
       } else {
+        params.set("scope", "product");
         const data = await api.get<PaginatedResponse<CatalogReq>>(`/api/v1/catalog-requests?${params}`);
         setCatalogRequests(data.items);
       }

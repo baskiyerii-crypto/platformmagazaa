@@ -9,12 +9,17 @@ export const GET = withAuth(async (request) => {
   const { searchParams } = new URL(request.url);
   const campaignId = searchParams.get("campaignId");
   const categoryId = searchParams.get("categoryId");
+  const scope = searchParams.get("scope") ?? "product";
   const all = searchParams.get("all") === "1";
 
   const items = await prisma.catalogItem.findMany({
     where: {
       ...(all ? {} : { active: true }),
-      ...(campaignId ? { campaignId } : {}),
+      ...(campaignId
+        ? { campaignId }
+        : scope === "campaign"
+          ? { campaignId: { not: null } }
+          : { campaignId: null }),
       ...(categoryId ? { categoryId } : {}),
     },
     include: catalogItemInclude,
@@ -35,8 +40,8 @@ export const POST = withAuth(
         name: formData.get("name")?.toString(),
         code: formData.get("code")?.toString(),
         type: formData.get("type")?.toString() || "FIXED",
-        campaignId: formData.get("campaignId")?.toString(),
-        categoryId: formData.get("categoryId")?.toString(),
+        campaignId: formData.get("campaignId")?.toString() || null,
+        categoryId: formData.get("categoryId")?.toString() || null,
         description: formData.get("description")?.toString() || null,
         sortOrder: formData.get("sortOrder")
           ? Number(formData.get("sortOrder"))
@@ -64,14 +69,19 @@ export const POST = withAuth(
       return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
     }
 
-    const [campaign, category] = await Promise.all([
-      prisma.catalogCampaign.findUnique({ where: { id: parsed.data.campaignId } }),
-      prisma.catalogCategory.findUnique({ where: { id: parsed.data.categoryId } }),
-    ]);
-    if (!campaign || !campaign.active) return jsonError("Kampanya bulunamadı", 404);
-    if (!category || !category.active) return jsonError("Kategori bulunamadı", 404);
-    if (category.campaignId !== campaign.id) {
-      return jsonError("Kategori bu kampanyaya ait değil", 400);
+    if (parsed.data.campaignId || parsed.data.categoryId) {
+      if (!parsed.data.campaignId || !parsed.data.categoryId) {
+        return jsonError("Kampanya ürünü için kampanya ve kategori birlikte seçilmeli", 400);
+      }
+      const [campaign, category] = await Promise.all([
+        prisma.catalogCampaign.findUnique({ where: { id: parsed.data.campaignId } }),
+        prisma.catalogCategory.findUnique({ where: { id: parsed.data.categoryId } }),
+      ]);
+      if (!campaign || !campaign.active) return jsonError("Kampanya bulunamadı", 404);
+      if (!category || !category.active) return jsonError("Kategori bulunamadı", 404);
+      if (category.campaignId !== campaign.id) {
+        return jsonError("Kategori bu kampanyaya ait değil", 400);
+      }
     }
 
     const existing = await prisma.catalogItem.findUnique({

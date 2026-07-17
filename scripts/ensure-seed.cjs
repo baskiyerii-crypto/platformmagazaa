@@ -195,42 +195,11 @@ async function seedDefinitionsAndStore() {
         description: item.description,
         sortOrder: item.sortOrder,
         active: true,
-        campaignId: campaign.id,
-        categoryId: category.id,
+        campaignId: null,
+        categoryId: null,
       },
-      create: {
-        ...item,
-        campaignId: campaign.id,
-        categoryId: category.id,
-      },
+      create: item,
     });
-  }
-
-  // Backfill orphan catalog items / requests
-  await prisma.catalogItem.updateMany({
-    where: { OR: [{ campaignId: null }, { categoryId: null }] },
-    data: { campaignId: campaign.id, categoryId: category.id },
-  });
-
-  const orphanRequests = await prisma.catalogRequest.findMany({
-    where: { campaignId: null },
-    select: { id: true, catalogItemId: true },
-  });
-  if (orphanRequests.length > 0) {
-    const itemIds = [...new Set(orphanRequests.map((r) => r.catalogItemId))];
-    const items = await prisma.catalogItem.findMany({
-      where: { id: { in: itemIds } },
-      select: { id: true, campaignId: true },
-    });
-    const campaignByItem = new Map(items.map((i) => [i.id, i.campaignId]));
-    for (const req of orphanRequests) {
-      const campaignId = campaignByItem.get(req.catalogItemId) ?? campaign.id;
-      await prisma.catalogRequest.update({
-        where: { id: req.id },
-        data: { campaignId },
-      });
-    }
-    console.log(`[ensure-seed] backfilled ${orphanRequests.length} catalog requests`);
   }
 }
 

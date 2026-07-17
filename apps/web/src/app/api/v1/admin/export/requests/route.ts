@@ -15,6 +15,7 @@ export const GET = withAuth(
       targetType: searchParams.get("targetType") ?? undefined,
       campaignId: searchParams.get("campaignId") ?? undefined,
       categoryId: searchParams.get("categoryId") ?? undefined,
+      scope: (searchParams.get("scope") as "product" | "campaign" | null) ?? undefined,
       dateFrom: searchParams.get("dateFrom") ?? undefined,
       dateTo: searchParams.get("dateTo") ?? undefined,
       tab: searchParams.get("tab") ?? "all",

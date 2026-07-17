@@ -71,7 +71,7 @@ export function StoreCatalogManager() {
   async function load() {
     const [campaignRes, reqRes] = await Promise.all([
       fetch("/api/v1/admin/catalog/campaigns"),
-      fetch("/api/v1/catalog-requests?limit=100"),
+      fetch("/api/v1/catalog-requests?scope=campaign&limit=100"),
     ]);
     const campaignData = await campaignRes.json();
     const reqData = await reqRes.json();

@@ -20,6 +20,7 @@ export type RequestsExportFilters = {
   targetType?: string;
   campaignId?: string;
   categoryId?: string;
+  scope?: "product" | "campaign";
   dateFrom?: string;
   dateTo?: string;
   /** visual | catalog | all — default all */
@@ -226,13 +227,15 @@ export async function generateRequestsExcelBuffer(
     const where: {
       storeId?: string;
       status?: ChangeRequestStatus;
-      campaignId?: string;
+      campaignId?: string | { not: null } | null;
       createdAt?: { gte?: Date; lte?: Date };
       catalogItem?: { categoryId?: string };
     } = {};
     if (filters.storeId) where.storeId = filters.storeId;
     if (filters.status) where.status = filters.status as ChangeRequestStatus;
     if (filters.campaignId) where.campaignId = filters.campaignId;
+    else if (filters.scope === "campaign") where.campaignId = { not: null };
+    else if (filters.scope === "product") where.campaignId = null;
     if (filters.categoryId) where.catalogItem = { categoryId: filters.categoryId };
     if (createdAt) where.createdAt = createdAt;
 
