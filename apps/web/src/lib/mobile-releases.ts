@@ -1,5 +1,6 @@
 import { access, readFile, stat } from "fs/promises";
 import path from "path";
+import { resolveUploadDirPath } from "@/lib/upload";
 
 export type MobilePlatform = "ANDROID" | "IOS";
 
@@ -22,8 +23,6 @@ export type MobileReleaseInfo = ReleaseManifestEntry & {
   available: boolean;
 };
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR ?? "./uploads";
-
 const PLATFORM_FILES: Record<MobilePlatform, { subdir: string; defaultFile: string }> = {
   ANDROID: { subdir: "android", defaultFile: "magaza.apk" },
   IOS: { subdir: "ios", defaultFile: "magaza.ipa" },
@@ -35,7 +34,7 @@ const MIME_TYPES: Record<MobilePlatform, string> = {
 };
 
 function releasesRoot() {
-  return path.join(process.cwd(), UPLOAD_DIR, "releases");
+  return path.join(resolveUploadDirPath(), "releases");
 }
 
 function manifestPath() {

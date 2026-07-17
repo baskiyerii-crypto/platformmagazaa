@@ -39,6 +39,10 @@ export async function ensureUploadDir() {
   return dir;
 }
 
+export function resolveUploadDirPath() {
+  return resolveUploadDir();
+}
+
 export async function getUploadDirStatus() {
   const resolvedDir = resolveUploadDir();
   let dirExists = false;
