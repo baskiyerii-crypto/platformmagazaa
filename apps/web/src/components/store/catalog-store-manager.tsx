@@ -25,7 +25,6 @@ type CatalogItem = {
 type CatalogRequest = {
   id: string;
   quantity?: number | null;
-  note?: string | null;
   status: ChangeRequestStatus;
   catalogItem: CatalogItem;
   createdAt: string;
@@ -36,7 +35,6 @@ export function StoreCatalogManager() {
   const [requests, setRequests] = useState<CatalogRequest[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(false);
 
   const selected = items.find((i) => i.id === selectedId);
@@ -63,14 +61,12 @@ export function StoreCatalogManager() {
     setLoading(true);
     const formData = new FormData();
     formData.append("catalogItemId", selectedId);
-    if (selected?.type === "VARIABLE") formData.append("quantity", quantity);
-    if (note) formData.append("note", note);
+    formData.append("quantity", quantity);
     const res = await fetch("/api/v1/catalog-requests", { method: "POST", body: formData });
     if (!res.ok) {
       const err = await res.json();
       alert(err.error ?? "Talep oluşturulamadı");
     } else {
-      setNote("");
       setQuantity("1");
       await load();
     }
@@ -110,15 +106,9 @@ export function StoreCatalogManager() {
           </CardHeader>
           <CardContent>
             <form onSubmit={submitRequest} className="space-y-4 max-w-md">
-              {selected.type === "VARIABLE" && (
-                <div className="space-y-2">
-                  <Label>Adet</Label>
-                  <Input type="number" min={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
-                </div>
-              )}
               <div className="space-y-2">
-                <Label>Not (opsiyonel)</Label>
-                <Input value={note} onChange={(e) => setNote(e.target.value)} />
+                <Label>Adet</Label>
+                <Input type="number" min={1} step={1} value={quantity} onChange={(e) => setQuantity(e.target.value)} required />
               </div>
               <Button type="submit" disabled={loading}>Talep Oluştur</Button>
             </form>
@@ -134,7 +124,6 @@ export function StoreCatalogManager() {
               <div>
                 <div className="font-medium">{req.catalogItem.name}</div>
                 {req.quantity && <div className="text-sm">{req.quantity} adet</div>}
-                {req.note && <div className="text-sm text-muted-foreground">{req.note}</div>}
               </div>
               <StatusBadge status={req.status} />
             </CardContent>

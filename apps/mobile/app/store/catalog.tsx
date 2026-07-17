@@ -25,7 +25,6 @@ type CatalogItem = {
 type CatalogRequest = {
   id: string;
   quantity?: number | null;
-  note?: string | null;
   status: ChangeRequestStatus;
   catalogItem: CatalogItem;
 };
@@ -46,7 +45,6 @@ export default function StoreCatalog() {
   const [requests, setRequests] = useState<CatalogRequest[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [quantity, setQuantity] = useState("1");
-  const [note, setNote] = useState("");
   const [loading, setLoading] = useState(true);
 
   const selected = items.find((i) => i.id === selectedId);
@@ -77,8 +75,7 @@ export default function StoreCatalog() {
 
     const formData = new FormData();
     formData.append("catalogItemId", selectedId);
-    if (selected?.type === "VARIABLE") formData.append("quantity", quantity);
-    if (note) formData.append("note", note);
+    formData.append("quantity", quantity);
 
     const token = await getToken();
     const res = await fetch(`${API_URL}/api/v1/catalog-requests`, {
@@ -93,7 +90,6 @@ export default function StoreCatalog() {
       return;
     }
 
-    setNote("");
     setQuantity("1");
     load();
     Alert.alert("Başarılı", "Ürün talebi oluşturuldu");
@@ -130,10 +126,7 @@ export default function StoreCatalog() {
       {selected && (
         <Card>
           <Text style={styles.cardTitle}>{selected.name} — Talep Aç</Text>
-          {selected.type === "VARIABLE" && (
-            <InputField label="Adet" value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="1" />
-          )}
-          <InputField label="Not (opsiyonel)" value={note} onChangeText={setNote} placeholder="Açıklama" />
+          <InputField label="Adet" value={quantity} onChangeText={setQuantity} keyboardType="numeric" placeholder="1" />
           <PrimaryButton label="Talep Oluştur" onPress={submitRequest} />
         </Card>
       )}
@@ -142,7 +135,6 @@ export default function StoreCatalog() {
         <Card key={req.id}>
           <Text style={styles.cardTitle}>{req.catalogItem.name}</Text>
           {req.quantity ? <Text style={styles.cardBody}>{req.quantity} adet</Text> : null}
-          {req.note ? <Text style={styles.cardSubtitle}>{req.note}</Text> : null}
           <View style={{ marginTop: 8 }}>
             <StatusPill
               label={CHANGE_REQUEST_STATUS_LABELS[req.status]}

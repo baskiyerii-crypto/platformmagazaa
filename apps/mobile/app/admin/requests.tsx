@@ -67,7 +67,7 @@ type CatalogReq = {
   store: { name: string };
   status: ChangeRequestStatus;
   catalogItem: { name: string };
-  note?: string | null;
+  quantity?: number | null;
 };
 
 function RequestThumbnails({
@@ -237,7 +237,7 @@ export default function AdminRequests() {
       <Card>
         <Text style={styles.cardTitle}>{req.store.name}</Text>
         <Text style={styles.cardSubtitle}>{req.catalogItem.name}</Text>
-        {req.note ? <Text style={styles.cardBody}>{req.note}</Text> : null}
+        {req.quantity ? <Text style={styles.cardBody}>Adet: {req.quantity}</Text> : null}
         <View style={{ marginTop: 12 }}>
           <StatusPill label={CHANGE_REQUEST_STATUS_LABELS[req.status]} backgroundColor={STATUS_COLORS[req.status] ?? "#F0EFEB"} />
         </View>

@@ -78,7 +78,7 @@ export const POST = withAuth(async (request, auth) => {
     body = {
       catalogItemId: formData.get("catalogItemId")?.toString(),
       quantity: formData.get("quantity") ? Number(formData.get("quantity")) : null,
-      note: formData.get("note")?.toString() || null,
+      note: auth.role === "STORE" ? null : formData.get("note")?.toString() || null,
     };
     const file = formData.get("file");
     if (auth.role !== "STORE" && file instanceof File && file.size > 0) {
@@ -91,6 +91,7 @@ export const POST = withAuth(async (request, auth) => {
   } else {
     body = await request.json();
     storeIdParam = (body.storeId as string) ?? null;
+    if (auth.role === "STORE") body.note = null;
     storeImageUrl =
       auth.role === "STORE" ? null : (body.storeImageUrl as string) ?? null;
   }
@@ -115,8 +116,8 @@ export const POST = withAuth(async (request, auth) => {
     return jsonError("Ürün bulunamadı", 404);
   }
 
-  if (catalogItem.type === "VARIABLE" && (!parsed.data.quantity || parsed.data.quantity < 1)) {
-    return jsonError("Değişken ürünler için adet zorunlu", 400);
+  if (!parsed.data.quantity || parsed.data.quantity < 1) {
+    return jsonError("Ürün talebi için adet zorunlu", 400);
   }
 
   const openRequest = await prisma.catalogRequest.findFirst({
@@ -134,7 +135,7 @@ export const POST = withAuth(async (request, auth) => {
     data: {
       storeId,
       catalogItemId: parsed.data.catalogItemId,
-      quantity: catalogItem.type === "VARIABLE" ? parsed.data.quantity : null,
+      quantity: parsed.data.quantity,
       note: parsed.data.note,
       storeImageUrl,
       status: "TALEP_OLUSTURULDU",
@@ -158,7 +159,7 @@ export const POST = withAuth(async (request, auth) => {
     await notifyStaff({
       type: "CATALOG_REQUEST",
       title: "Yeni Ürün Talebi",
-      body: `${catalogRequest.store.name} — ${catalogItem.name}`,
+      body: `${catalogRequest.store.name} — ${catalogItem.name} — ${parsed.data.quantity} adet`,
       linkUrl: "/admin/requests",
     });
   }

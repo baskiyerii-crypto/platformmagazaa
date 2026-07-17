@@ -171,7 +171,10 @@ export const updateCatalogItemSchema = createCatalogItemSchema.partial();
 export const createCatalogRequestSchema = z
   .object({
     catalogItemId: z.string().min(1, "Ürün seçin"),
-    quantity: z.number().int().min(1).optional().nullable(),
+    quantity: z
+      .number({ required_error: "Adet zorunlu", invalid_type_error: "Geçerli bir adet girin" })
+      .int("Adet tam sayı olmalı")
+      .min(1, "Adet en az 1 olmalı"),
     note: z.string().optional().nullable(),
     storeImageUrl: z.string().optional().nullable(),
   })
