@@ -4,7 +4,11 @@ import { withAuthParams, jsonError } from "@/lib/api-auth";
 import { storeSignageEntrySchema } from "@magaza/shared";
 import { saveUploadedFile } from "@/lib/upload";
 import { cleanupMediaUrls, replaceMediaUrl } from "@/lib/media-cleanup";
-import { validatePlacement, validateSignageSubType } from "@/lib/signage-validation";
+import {
+  validatePlacement,
+  validateReyonCategory,
+  validateSignageSubType,
+} from "@/lib/signage-validation";
 
 export const PATCH = withAuthParams<{ id: string }>(async (request, auth, context) => {
   const { id } = await context.params;
@@ -22,6 +26,8 @@ export const PATCH = withAuthParams<{ id: string }>(async (request, auth, contex
     updateData = {
       subTypeId: formData.get("subTypeId") || entry.subTypeId,
       placementId: formData.get("placementId") || entry.placementId,
+      reyonCategoryId:
+        formData.get("reyonCategoryId")?.toString() || entry.reyonCategoryId,
       en: Number(formData.get("en") ?? entry.en),
       boy: Number(formData.get("boy") ?? entry.boy),
       adet: Number(formData.get("adet") ?? entry.adet),
@@ -58,11 +64,15 @@ export const PATCH = withAuthParams<{ id: string }>(async (request, auth, contex
     const placement = await validatePlacement(String(updateData.placementId));
     if (!placement) return jsonError("Geçersiz konum", 400);
   }
+  if (updateData.reyonCategoryId) {
+    const reyon = await validateReyonCategory(String(updateData.reyonCategoryId));
+    if (!reyon) return jsonError("Geçersiz reyon kategorisi", 400);
+  }
 
   const updated = await prisma.storeSignageEntry.update({
     where: { id },
     data: updateData,
-    include: { subType: true, placement: true },
+    include: { subType: true, placement: true, reyonCategory: true },
   });
 
   return NextResponse.json(updated);

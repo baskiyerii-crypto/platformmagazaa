@@ -3,7 +3,11 @@ import { prisma } from "@magaza/database";
 import { withAuth, jsonError } from "@/lib/api-auth";
 import { storeSignageEntrySchema, isStaffRole } from "@magaza/shared";
 import { saveUploadedFile } from "@/lib/upload";
-import { validatePlacement, validateSignageSubType } from "@/lib/signage-validation";
+import {
+  validatePlacement,
+  validateReyonCategory,
+  validateSignageSubType,
+} from "@/lib/signage-validation";
 
 export const GET = withAuth(async (request, auth) => {
   const storeIdParam = new URL(request.url).searchParams.get("storeId");
@@ -28,6 +32,7 @@ export const GET = withAuth(async (request, auth) => {
       gorselUrl: true,
       subType: { select: { id: true, name: true } },
       placement: { select: { id: true, name: true } },
+      reyonCategory: { select: { id: true, name: true, code: true } },
     },
     orderBy: { updatedAt: "desc" },
     take: 50,
@@ -48,6 +53,7 @@ export const POST = withAuth(async (request, auth) => {
     data = {
       subTypeId: formData.get("subTypeId"),
       placementId: formData.get("placementId"),
+      reyonCategoryId: formData.get("reyonCategoryId") || null,
       en: Number(formData.get("en")),
       boy: Number(formData.get("boy")),
       adet: Number(formData.get("adet") ?? 1),
@@ -92,6 +98,11 @@ export const POST = withAuth(async (request, auth) => {
   const placement = await validatePlacement(parsed.data.placementId);
   if (!placement) return jsonError("Geçersiz konum", 400);
 
+  if (parsed.data.reyonCategoryId) {
+    const reyon = await validateReyonCategory(parsed.data.reyonCategoryId);
+    if (!reyon) return jsonError("Geçersiz reyon kategorisi", 400);
+  }
+
   const finalGorselUrl = gorselUrl ?? parsed.data.gorselUrl;
   if (!finalGorselUrl) {
     return jsonError("Fotoğraf zorunlu", 400);
@@ -103,7 +114,7 @@ export const POST = withAuth(async (request, auth) => {
       ...parsed.data,
       gorselUrl: finalGorselUrl,
     },
-    include: { subType: true, placement: true },
+    include: { subType: true, placement: true, reyonCategory: true },
   });
 
   return NextResponse.json(entry, { status: 201 });

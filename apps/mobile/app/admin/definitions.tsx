@@ -7,6 +7,7 @@ import { ADMIN_MENU } from "@/lib/menus";
 type Definitions = {
   categories: Array<{ type: string; name: string; subTypes: Array<{ id: string; name: string; code: string }> }>;
   placements: Array<{ id: string; name: string }>;
+  reyonCategories: Array<{ id: string; name: string; code: string }>;
 };
 
 export default function AdminDefinitions() {
@@ -17,7 +18,7 @@ export default function AdminDefinitions() {
   }, []);
 
   return (
-    <Screen title="Tanımlar" subtitle="Alt türler ve yerleşim seçenekleri" menuItems={ADMIN_MENU}>
+    <Screen title="Tanımlar" subtitle="Alt tür, konum ve reyon kategorileri" menuItems={ADMIN_MENU}>
       {defs?.categories.map((cat) => (
         <Card key={cat.type}>
           <Text style={styles.cardTitle}>{cat.name}</Text>
@@ -31,6 +32,15 @@ export default function AdminDefinitions() {
         {defs?.placements.map((p) => (
           <Text key={p.id} style={styles.cardBody}>• {p.name}</Text>
         ))}
+      </Card>
+      <Card>
+        <Text style={styles.cardTitle}>Reyon Kategorileri</Text>
+        {defs?.reyonCategories.map((r) => (
+          <Text key={r.id} style={styles.cardBody}>• {r.name} ({r.code})</Text>
+        ))}
+        {!defs?.reyonCategories.length && (
+          <Text style={styles.cardBody}>Henüz reyon kategorisi yok</Text>
+        )}
       </Card>
     </Screen>
   );

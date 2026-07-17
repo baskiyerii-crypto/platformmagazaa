@@ -27,6 +27,7 @@ type SignageEntry = {
   id: string;
   subType: { id: string; name: string };
   placement: { id: string; name: string };
+  reyonCategory?: { id: string; name: string } | null;
   en: number;
   boy: number;
   adet: number;
@@ -37,9 +38,11 @@ type SignageEntry = {
 export function SignageManager({ storeId, adminMode, formOnly, storeName, onSuccess }: Props = {}) {
   const [subTypes, setSubTypes] = useState<Array<{ id: string; name: string }>>([]);
   const [placements, setPlacements] = useState<Array<{ id: string; name: string }>>([]);
+  const [reyonCategories, setReyonCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [entries, setEntries] = useState<SignageEntry[]>([]);
   const [subTypeId, setSubTypeId] = useState("");
   const [placementId, setPlacementId] = useState("");
+  const [reyonCategoryId, setReyonCategoryId] = useState("");
   const [en, setEn] = useState("");
   const [boy, setBoy] = useState("");
   const [adet, setAdet] = useState("1");
@@ -48,6 +51,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
   const [editEntry, setEditEntry] = useState<SignageEntry | null>(null);
   const [editFile, setEditFile] = useState<File | null>(null);
   const [editPlacementId, setEditPlacementId] = useState("");
+  const [editReyonCategoryId, setEditReyonCategoryId] = useState("");
   const [editEn, setEditEn] = useState("");
   const [editBoy, setEditBoy] = useState("");
   const [editAdet, setEditAdet] = useState("");
@@ -64,6 +68,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
       fetchDefinitions<{
         categories: Array<{ type: string; subTypes: Array<{ id: string; name: string }> }>;
         placements: Array<{ id: string; name: string }>;
+        reyonCategories: Array<{ id: string; name: string }>;
       }>(),
       formOnly
         ? Promise.resolve([] as SignageEntry[])
@@ -72,6 +77,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
     const magazaIci = defs.categories.find((c) => c.type === "MAGAZA_ICI");
     setSubTypes(magazaIci?.subTypes ?? []);
     setPlacements(defs.placements ?? []);
+    setReyonCategories(defs.reyonCategories ?? []);
     if (magazaIci?.subTypes[0]) setSubTypeId(magazaIci.subTypes[0].id);
     if (defs.placements[0]) setPlacementId(defs.placements[0].id);
     if (!formOnly) setEntries(e);
@@ -96,6 +102,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
       if (storeId) formData.append("storeId", storeId);
       formData.append("subTypeId", subTypeId);
       formData.append("placementId", placementId);
+      if (reyonCategoryId) formData.append("reyonCategoryId", reyonCategoryId);
       formData.append("en", en);
       formData.append("boy", boy);
       formData.append("adet", adet);
@@ -127,6 +134,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
         const fd = new FormData();
         fd.append("file", editFile);
         fd.append("placementId", editPlacementId);
+        if (editReyonCategoryId) fd.append("reyonCategoryId", editReyonCategoryId);
         fd.append("en", editEn);
         fd.append("boy", editBoy);
         fd.append("adet", editAdet);
@@ -141,6 +149,7 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             placementId: editPlacementId,
+            reyonCategoryId: editReyonCategoryId || null,
             en: Number(editEn),
             boy: Number(editBoy),
             adet: Number(editAdet),
@@ -232,6 +241,24 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
                 ))}
               </div>
             </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Reyon Kategorisi</Label>
+              <select
+                className="field-select"
+                value={reyonCategoryId}
+                onChange={(e) => setReyonCategoryId(e.target.value)}
+              >
+                <option value="">Reyon belirtilmedi</option>
+                {reyonCategories.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
+              {!reyonCategories.length && (
+                <p className="text-xs text-muted-foreground">
+                  Yönetici Tanımlar ekranından reyon kategorisi ekleyebilir.
+                </p>
+              )}
+            </div>
             <div className="space-y-2"><Label>En (cm)</Label><Input value={en} onChange={(e) => setEn(e.target.value)} required /></div>
             <div className="space-y-2"><Label>Boy (cm)</Label><Input value={boy} onChange={(e) => setBoy(e.target.value)} required /></div>
             <div className="space-y-2"><Label>Adet</Label><Input value={adet} onChange={(e) => setAdet(e.target.value)} required /></div>
@@ -258,12 +285,16 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
             <CardContent className="space-y-3 p-4">
               <div className="font-semibold">{entry.subType.name}</div>
               <div className="text-sm text-muted-foreground">{entry.placement.name}</div>
+              <div className="text-sm text-muted-foreground">
+                Reyon: {entry.reyonCategory?.name ?? "Belirtilmedi"}
+              </div>
               <div className="text-sm text-muted-foreground">{entry.en}×{entry.boy} cm · {entry.adet} adet</div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" size="sm" onClick={() => {
                   setEditEntry(entry);
                   setEditFile(null);
                   setEditPlacementId(entry.placement.id);
+                  setEditReyonCategoryId(entry.reyonCategory?.id ?? "");
                   setEditEn(String(entry.en));
                   setEditBoy(String(entry.boy));
                   setEditAdet(String(entry.adet));
@@ -288,6 +319,19 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
               <select className="field-select" value={editPlacementId} onChange={(e) => setEditPlacementId(e.target.value)}>
                 {placements.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Reyon Kategorisi</Label>
+              <select
+                className="field-select"
+                value={editReyonCategoryId}
+                onChange={(e) => setEditReyonCategoryId(e.target.value)}
+              >
+                <option value="">Reyon belirtilmedi</option>
+                {reyonCategories.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
                 ))}
               </select>
             </div>

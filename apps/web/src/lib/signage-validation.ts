@@ -10,3 +10,7 @@ export async function validateSignageSubType(subTypeId: string) {
 export async function validatePlacement(placementId: string) {
   return prisma.placementOption.findUnique({ where: { id: placementId } });
 }
+
+export async function validateReyonCategory(reyonCategoryId: string) {
+  return prisma.reyonCategory.findUnique({ where: { id: reyonCategoryId } });
+}

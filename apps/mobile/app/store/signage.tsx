@@ -13,6 +13,7 @@ type SignageEntry = {
   id: string;
   subType: { name: string; id: string };
   placement: { name: string; id: string };
+  reyonCategory?: { name: string; id: string } | null;
   en: number;
   boy: number;
   adet: number;
@@ -24,8 +25,10 @@ export default function StoreSignage() {
   const [entries, setEntries] = useState<SignageEntry[]>([]);
   const [subTypes, setSubTypes] = useState<Array<{ id: string; name: string }>>([]);
   const [placements, setPlacements] = useState<Array<{ id: string; name: string }>>([]);
+  const [reyonCategories, setReyonCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [subTypeId, setSubTypeId] = useState("");
   const [placementId, setPlacementId] = useState("");
+  const [reyonCategoryId, setReyonCategoryId] = useState("");
   const [en, setEn] = useState("");
   const [boy, setBoy] = useState("");
   const [adet, setAdet] = useState("1");
@@ -34,6 +37,7 @@ export default function StoreSignage() {
   const [saving, setSaving] = useState(false);
   const [editEntry, setEditEntry] = useState<SignageEntry | null>(null);
   const [editPlacementId, setEditPlacementId] = useState("");
+  const [editReyonCategoryId, setEditReyonCategoryId] = useState("");
   const [editEn, setEditEn] = useState("");
   const [editBoy, setEditBoy] = useState("");
   const [editAdet, setEditAdet] = useState("");
@@ -45,12 +49,14 @@ export default function StoreSignage() {
       api.getCached<{
         categories: Array<{ type: string; subTypes: Array<{ id: string; name: string }> }>;
         placements: Array<{ id: string; name: string }>;
+        reyonCategories: Array<{ id: string; name: string }>;
       }>("/api/v1/definitions", 300_000),
       api.get<SignageEntry[]>("/api/v1/store/signage-entries"),
     ]);
     const magazaIci = defs.categories.find((c) => c.type === "MAGAZA_ICI");
     setSubTypes(magazaIci?.subTypes ?? []);
     setPlacements(defs.placements ?? []);
+    setReyonCategories(defs.reyonCategories ?? []);
     if (magazaIci?.subTypes[0]) setSubTypeId(magazaIci.subTypes[0].id);
     if (defs.placements[0]) setPlacementId(defs.placements[0].id);
     setEntries(list);
@@ -81,6 +87,7 @@ export default function StoreSignage() {
       const formData = new FormData();
       formData.append("subTypeId", subTypeId);
       formData.append("placementId", placementId);
+      if (reyonCategoryId) formData.append("reyonCategoryId", reyonCategoryId);
       formData.append("en", en);
       formData.append("boy", boy);
       formData.append("adet", adet);
@@ -118,6 +125,7 @@ export default function StoreSignage() {
   function openEdit(entry: SignageEntry) {
     setEditEntry(entry);
     setEditPlacementId(entry.placement.id);
+    setEditReyonCategoryId(entry.reyonCategory?.id ?? "");
     setEditEn(String(entry.en));
     setEditBoy(String(entry.boy));
     setEditAdet(String(entry.adet));
@@ -130,6 +138,7 @@ export default function StoreSignage() {
     try {
       await api.patch(`/api/v1/store/signage-entries/${editEntry.id}`, {
         placementId: editPlacementId,
+        reyonCategoryId: editReyonCategoryId || null,
         en: Number(editEn),
         boy: Number(editBoy),
         adet: Number(editAdet),
@@ -224,6 +233,28 @@ export default function StoreSignage() {
                 </Pressable>
               ))}
             </View>
+            <Text style={styles.inputLabel}>Reyon Kategorisi</Text>
+            <View style={localStyles.typeRow}>
+              <Pressable
+                onPress={() => setReyonCategoryId("")}
+                style={[localStyles.typeChip, !reyonCategoryId && localStyles.typeChipActive]}
+              >
+                <Text style={[localStyles.typeText, !reyonCategoryId && localStyles.typeTextActive]}>
+                  Belirtilmedi
+                </Text>
+              </Pressable>
+              {reyonCategories.map((r) => (
+                <Pressable
+                  key={r.id}
+                  onPress={() => setReyonCategoryId(r.id)}
+                  style={[localStyles.typeChip, reyonCategoryId === r.id && localStyles.typeChipActive]}
+                >
+                  <Text style={[localStyles.typeText, reyonCategoryId === r.id && localStyles.typeTextActive]}>
+                    {r.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
             <Text style={styles.inputLabel}>Konum</Text>
             <View style={localStyles.typeRow}>
               {placements.map((p) => (
@@ -247,6 +278,9 @@ export default function StoreSignage() {
           <Card>
             <Text style={styles.cardTitle}>{entry.subType.name}</Text>
             <Text style={styles.cardSubtitle}>{entry.placement.name}</Text>
+            <Text style={styles.cardSubtitle}>
+              Reyon: {entry.reyonCategory?.name ?? "Belirtilmedi"}
+            </Text>
             <Text style={styles.cardBody}>
               {entry.en}×{entry.boy} cm · {entry.adet} adet
             </Text>
@@ -274,6 +308,28 @@ export default function StoreSignage() {
                   style={[localStyles.typeChip, editPlacementId === p.id && localStyles.typeChipActive]}
                 >
                   <Text style={[localStyles.typeText, editPlacementId === p.id && localStyles.typeTextActive]}>{p.name}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <Text style={styles.inputLabel}>Reyon Kategorisi</Text>
+            <View style={localStyles.typeRow}>
+              <Pressable
+                onPress={() => setEditReyonCategoryId("")}
+                style={[localStyles.typeChip, !editReyonCategoryId && localStyles.typeChipActive]}
+              >
+                <Text style={[localStyles.typeText, !editReyonCategoryId && localStyles.typeTextActive]}>
+                  Belirtilmedi
+                </Text>
+              </Pressable>
+              {reyonCategories.map((r) => (
+                <Pressable
+                  key={r.id}
+                  onPress={() => setEditReyonCategoryId(r.id)}
+                  style={[localStyles.typeChip, editReyonCategoryId === r.id && localStyles.typeChipActive]}
+                >
+                  <Text style={[localStyles.typeText, editReyonCategoryId === r.id && localStyles.typeTextActive]}>
+                    {r.name}
+                  </Text>
                 </Pressable>
               ))}
             </View>

@@ -73,6 +73,7 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
         store: { select: { name: true } },
         subType: { select: { name: true } },
         placement: { select: { name: true } },
+        reyonCategory: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
     }),
@@ -128,8 +129,8 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
   const magazaIciSheet = addSheet(
     workbook,
     "Mağaza İçi",
-    ["Mağaza", "Tür", "Konum", "En", "Boy", "Adet", "Not", "Görsel URL", "Güncelleme"],
-    [22, 18, 18, 8, 8, 8, 28, 36, 18]
+    ["Mağaza", "Tür", "Konum", "Reyon", "En", "Boy", "Adet", "Not", "Görsel URL", "Güncelleme"],
+    [22, 18, 18, 18, 8, 8, 8, 28, 36, 18]
   );
 
   const talepSheet = addSheet(
@@ -277,6 +278,7 @@ export async function generateExcelBuffer(storeId?: string): Promise<Buffer> {
       s.store.name,
       s.subType.name,
       s.placement.name,
+      s.reyonCategory?.name ?? "",
       s.en,
       s.boy,
       s.adet,

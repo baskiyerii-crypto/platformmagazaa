@@ -92,6 +92,7 @@ export const GET = withAuth(
             store: { select: { id: true, name: true } },
             subType: { select: { name: true } },
             placement: { select: { name: true } },
+            reyonCategory: { select: { name: true } },
           },
           orderBy: { createdAt: "desc" },
           skip,
@@ -103,8 +104,16 @@ export const GET = withAuth(
         id: s.id,
         type: "STORE_SIGNAGE",
         store: s.store,
-        label: `${s.store.name} · ${s.subType.name} · ${s.placement.name}`,
+        label: [
+          s.store.name,
+          s.subType.name,
+          s.placement.name,
+          s.reyonCategory?.name ? `Reyon: ${s.reyonCategory.name}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         konum: s.placement.name,
+        reyon: s.reyonCategory?.name,
         en: s.en,
         boy: s.boy,
         adet: s.adet,

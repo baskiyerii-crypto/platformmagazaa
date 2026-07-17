@@ -71,6 +71,18 @@ export const createPlacementOptionSchema = z.object({
   sortOrder: z.number().int().default(0),
 });
 
+export const createReyonCategorySchema = z.object({
+  name: z.string().min(1, "Reyon kategorisi adı gerekli"),
+  code: z.string().min(1, "Kod gerekli"),
+  sortOrder: z.number().int().default(0),
+});
+
+export const updateReyonCategorySchema = createReyonCategorySchema
+  .partial()
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "Güncellenecek alan gerekli",
+  });
+
 export const updateAreaSubTypeSchema = z
   .object({
     categoryId: z.string().min(1).optional(),
@@ -145,6 +157,7 @@ export const outdoorEntrySchema = z.object({
 export const storeSignageEntrySchema = z.object({
   subTypeId: z.string().min(1, "Tür seçin"),
   placementId: z.string().min(1, "Konum seçin"),
+  reyonCategoryId: z.string().optional().nullable(),
   en: z.number().positive("En pozitif olmalı"),
   boy: z.number().positive("Boy pozitif olmalı"),
   adet: z.number().int().min(1, "Adet en az 1").default(1),

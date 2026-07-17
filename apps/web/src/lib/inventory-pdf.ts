@@ -72,7 +72,7 @@ export async function generateInventoryPdfBuffer(
     x += cols.type;
     doc.text("Açıklama", x, y, { width: cols.label });
     x += cols.label;
-    doc.text("Konum", x, y, { width: cols.konum });
+    doc.text("Konum / Reyon", x, y, { width: cols.konum });
     x += cols.konum;
     doc.text("Ölçü", x, y, { width: cols.size });
     x += cols.size;
@@ -120,7 +120,8 @@ export async function generateInventoryPdfBuffer(
     x += cols.type;
     doc.text(truncate(row.label, 32), x, y + 8, { width: cols.label - 4 });
     x += cols.label;
-    doc.text(truncate(row.konum, 24), x, y + 8, { width: cols.konum - 4 });
+    const locationText = [row.konum, row.reyon].filter(Boolean).join(" / ");
+    doc.text(truncate(locationText, 24), x, y + 8, { width: cols.konum - 4 });
     x += cols.konum;
     doc.text(sizeStr, x, y + 8, { width: cols.size - 4 });
     x += cols.size;

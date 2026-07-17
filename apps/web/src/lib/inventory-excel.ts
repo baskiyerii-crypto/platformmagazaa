@@ -26,15 +26,16 @@ export async function generateInventoryExcelBuffer(
   sheet.getColumn(4).width = 24;
   sheet.getColumn(5).width = 16;
   sheet.getColumn(6).width = 16;
-  sheet.getColumn(7).width = 8;
+  sheet.getColumn(7).width = 18;
   sheet.getColumn(8).width = 8;
   sheet.getColumn(9).width = 8;
-  sheet.getColumn(10).width = 18;
-  sheet.getColumn(11).width = 20;
-  sheet.getColumn(12).width = 48;
+  sheet.getColumn(10).width = 8;
+  sheet.getColumn(11).width = 18;
+  sheet.getColumn(12).width = 20;
+  sheet.getColumn(13).width = 48;
 
   sheet.addRow([`Filtre: ${formatExportFilterSummary(filters)}`]);
-  sheet.mergeCells(1, 1, 1, 12);
+  sheet.mergeCells(1, 1, 1, 13);
   sheet.getRow(1).font = { italic: true, size: 10 };
 
   const headerRow = sheet.addRow([
@@ -44,6 +45,7 @@ export async function generateInventoryExcelBuffer(
     "Açıklama",
     "Alt Tür",
     "Konum",
+    "Reyon",
     "En",
     "Boy",
     "Adet",
@@ -68,6 +70,7 @@ export async function generateInventoryExcelBuffer(
       row.label,
       row.subtype,
       row.konum,
+      row.reyon,
       Number(row.en) || 0,
       Number(row.boy) || 0,
       Number(row.adet) || 1,
@@ -78,7 +81,7 @@ export async function generateInventoryExcelBuffer(
     excelRow.height = ROW_HEIGHT;
 
     if (imageLink) {
-      const linkCell = excelRow.getCell(12);
+      const linkCell = excelRow.getCell(13);
       linkCell.value = { text: imageLink, hyperlink: imageLink };
       linkCell.font = { color: { argb: "FF2563EB" }, underline: true };
     }

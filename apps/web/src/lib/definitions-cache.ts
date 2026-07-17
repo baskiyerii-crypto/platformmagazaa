@@ -3,6 +3,7 @@ import { fetchCached, invalidateCache } from "@magaza/shared";
 type Definitions = {
   categories: Array<{ subTypes: Array<{ id: string; name: string; code: string }> }>;
   placements: Array<{ id: string; name: string }>;
+  reyonCategories: Array<{ id: string; name: string; code: string }>;
 };
 
 export function fetchDefinitions<T = Definitions>(): Promise<T> {

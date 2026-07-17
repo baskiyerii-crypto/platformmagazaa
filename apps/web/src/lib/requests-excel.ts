@@ -188,6 +188,7 @@ export async function generateRequestsExcelBuffer(
       { header: "Mağaza", key: "store", width: 24 },
       { header: "Hedef Tür", key: "targetType", width: 16 },
       { header: "Özet", key: "summary", width: 40 },
+      { header: "Reyon", key: "reyon", width: 18 },
       { header: "En", key: "en", width: 10 },
       { header: "Boy", key: "boy", width: 10 },
       { header: "Adet", key: "adet", width: 10 },
@@ -213,6 +214,7 @@ export async function generateRequestsExcelBuffer(
           CHANGE_TARGET_TYPE_LABELS[req.targetType as keyof typeof CHANGE_TARGET_TYPE_LABELS] ??
           changeTargetTypeLabel(req.targetType),
         summary: target?.summary ?? "",
+        reyon: target?.reyonCategoryName ?? "",
         en: target?.en ?? "",
         boy: target?.boy ?? "",
         adet: target?.adet ?? "",

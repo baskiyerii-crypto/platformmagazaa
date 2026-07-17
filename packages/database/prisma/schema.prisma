@@ -201,6 +201,16 @@ model PlacementOption {
   signageEntries  StoreSignageEntry[]
 }
 
+model ReyonCategory {
+  id        String   @id @default(cuid())
+  name      String
+  code      String   @unique
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  signageEntries StoreSignageEntry[]
+}
+
 model AvmEntry {
   id        String      @id @default(cuid())
   storeId   String
@@ -275,24 +285,27 @@ model OutdoorEntry {
 }
 
 model StoreSignageEntry {
-  id          String          @id @default(cuid())
-  storeId     String
-  store       Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  subTypeId   String
-  subType     AreaSubType     @relation(fields: [subTypeId], references: [id])
-  placementId String
-  placement   PlacementOption @relation(fields: [placementId], references: [id])
-  en          Float
-  boy         Float
-  adet        Int             @default(1)
-  note        String?
-  gorselUrl   String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id              String          @id @default(cuid())
+  storeId         String
+  store           Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  subTypeId       String
+  subType         AreaSubType     @relation(fields: [subTypeId], references: [id])
+  placementId     String
+  placement       PlacementOption @relation(fields: [placementId], references: [id])
+  reyonCategoryId String?
+  reyonCategory   ReyonCategory?  @relation(fields: [reyonCategoryId], references: [id], onDelete: SetNull)
+  en              Float
+  boy             Float
+  adet            Int             @default(1)
+  note            String?
+  gorselUrl       String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([storeId])
   @@index([subTypeId])
   @@index([placementId])
+  @@index([reyonCategoryId])
   @@index([createdAt])
 }
 

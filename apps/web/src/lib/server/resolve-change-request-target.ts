@@ -5,6 +5,7 @@ export type ChangeRequestTargetDetail = {
   typeLabel: string;
   subTypeName?: string | null;
   placementName?: string | null;
+  reyonCategoryName?: string | null;
   konum?: string | null;
   dimensions?: string | null;
   en?: number | null;
@@ -59,6 +60,7 @@ export async function resolveChangeRequestTargets(
           include: {
             subType: { select: { name: true } },
             placement: { select: { name: true } },
+            reyonCategory: { select: { name: true } },
           },
         })
       : [],
@@ -108,18 +110,27 @@ export async function resolveChangeRequestTargets(
   for (const s of signages) {
     const subTypeName = s.subType.name;
     const placementName = s.placement.name;
+    const reyonCategoryName = s.reyonCategory?.name ?? null;
     const dimensions = formatDimensions(s.en, s.boy);
     result.set(`STORE_SIGNAGE:${s.id}`, {
       typeLabel: MEDIA_CATEGORY_LABELS.STORE_SIGNAGE,
       subTypeName,
       placementName,
+      reyonCategoryName,
       konum: placementName,
       dimensions,
       en: s.en,
       boy: s.boy,
       adet: s.adet,
       gorselUrl: s.gorselUrl,
-      summary: [MEDIA_CATEGORY_LABELS.STORE_SIGNAGE, subTypeName, placementName].join(" · "),
+      summary: [
+        MEDIA_CATEGORY_LABELS.STORE_SIGNAGE,
+        subTypeName,
+        placementName,
+        reyonCategoryName ? `Reyon: ${reyonCategoryName}` : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
     });
   }
 

@@ -15,10 +15,12 @@ type Category = {
   subTypes: SubType[];
 };
 type Placement = { id: string; name: string; code: string };
+type ReyonCategory = { id: string; name: string; code: string };
 
 type Definitions = {
   categories: Category[];
   placements: Placement[];
+  reyonCategories: ReyonCategory[];
 };
 
 async function apiJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -86,12 +88,17 @@ export function DefinitionsManager() {
   const [categoryId, setCategoryId] = useState("");
   const [placementName, setPlacementName] = useState("");
   const [placementCode, setPlacementCode] = useState("");
+  const [reyonName, setReyonName] = useState("");
+  const [reyonCode, setReyonCode] = useState("");
   const [editingSubTypeId, setEditingSubTypeId] = useState<string | null>(null);
   const [editingPlacementId, setEditingPlacementId] = useState<string | null>(null);
+  const [editingReyonId, setEditingReyonId] = useState<string | null>(null);
   const [editSubTypeName, setEditSubTypeName] = useState("");
   const [editSubTypeCode, setEditSubTypeCode] = useState("");
   const [editPlacementName, setEditPlacementName] = useState("");
   const [editPlacementCode, setEditPlacementCode] = useState("");
+  const [editReyonName, setEditReyonName] = useState("");
+  const [editReyonCode, setEditReyonCode] = useState("");
   const [error, setError] = useState("");
 
   async function load() {
@@ -149,6 +156,27 @@ export function DefinitionsManager() {
     }
   }
 
+  async function addReyonCategory(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    try {
+      await apiJson("/api/v1/definitions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "reyonCategory",
+          data: { name: reyonName, code: reyonCode, sortOrder: 0 },
+        }),
+      });
+      setReyonName("");
+      setReyonCode("");
+      invalidateDefinitionsCache();
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reyon kategorisi eklenemedi");
+    }
+  }
+
   function startEditSubType(st: SubType) {
     setEditingSubTypeId(st.id);
     setEditSubTypeName(st.name);
@@ -161,6 +189,15 @@ export function DefinitionsManager() {
     setEditPlacementName(p.name);
     setEditPlacementCode(p.code);
     setEditingSubTypeId(null);
+    setEditingReyonId(null);
+  }
+
+  function startEditReyon(r: ReyonCategory) {
+    setEditingReyonId(r.id);
+    setEditReyonName(r.name);
+    setEditReyonCode(r.code);
+    setEditingSubTypeId(null);
+    setEditingPlacementId(null);
   }
 
   async function saveSubType(id: string) {
@@ -233,6 +270,34 @@ export function DefinitionsManager() {
     }
   }
 
+  async function saveReyon(id: string) {
+    setError("");
+    try {
+      await apiJson(`/api/v1/definitions/reyon-categories/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: editReyonName, code: editReyonCode }),
+      });
+      setEditingReyonId(null);
+      invalidateDefinitionsCache();
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reyon kategorisi güncellenemedi");
+    }
+  }
+
+  async function deleteReyon(id: string, name: string) {
+    if (!confirm(`"${name}" reyon kategorisini silmek istediğinize emin misiniz?`)) return;
+    setError("");
+    try {
+      await apiJson(`/api/v1/definitions/reyon-categories/${id}`, { method: "DELETE" });
+      invalidateDefinitionsCache();
+      load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Reyon kategorisi silinemedi");
+    }
+  }
+
   const selectedCategory = defs?.categories.find((c) => c.id === categoryId);
 
   return (
@@ -240,7 +305,7 @@ export function DefinitionsManager() {
       <div>
         <h1 className="text-3xl font-bold">Tanımlar</h1>
         <p className="text-muted-foreground">
-          Envanter türleri (Tabela, Lightbox, Folyo…) ve mağaza içi konumları buradan yönetilir. Mağaza yalnızca listeden seçer.
+          Envanter türleri, mağaza içi konumlar ve reyon kategorileri buradan yönetilir. Mağaza yalnızca listeden seçer.
         </p>
       </div>
 
@@ -293,6 +358,38 @@ export function DefinitionsManager() {
                 <Input value={placementCode} onChange={(e) => setPlacementCode(e.target.value)} placeholder="Örn. GIRIS_USTU" required />
               </div>
               <Button type="submit">Konum Ekle</Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Reyon Kategorisi Ekle</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Mağaza içi kayıtlar Kadın, Erkek, Çocuk gibi bir reyonla sınıflandırılır.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={addReyonCategory} className="space-y-4">
+              <div className="space-y-2">
+                <Label>Ad</Label>
+                <Input
+                  value={reyonName}
+                  onChange={(e) => setReyonName(e.target.value)}
+                  placeholder="Örn. Kadın"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Kod</Label>
+                <Input
+                  value={reyonCode}
+                  onChange={(e) => setReyonCode(e.target.value)}
+                  placeholder="Örn. KADIN"
+                  required
+                />
+              </div>
+              <Button type="submit">Reyon Kategorisi Ekle</Button>
             </form>
           </CardContent>
         </Card>
@@ -357,6 +454,39 @@ export function DefinitionsManager() {
               ))}
               {!defs?.placements.length && (
                 <li className="text-sm text-muted-foreground">Henüz konum yok</li>
+              )}
+            </ul>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Tanımlı Reyon Kategorileri</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Mağaza içi envanter, sonuç ve Excel raporlarında kullanılır.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {defs?.reyonCategories.map((r) => (
+                <DefinitionRow
+                  key={r.id}
+                  name={r.name}
+                  code={r.code}
+                  editing={editingReyonId === r.id}
+                  editName={editReyonName}
+                  editCode={editReyonCode}
+                  onEditName={setEditReyonName}
+                  onEditCode={setEditReyonCode}
+                  onStartEdit={() => startEditReyon(r)}
+                  onCancelEdit={() => setEditingReyonId(null)}
+                  onSave={() => saveReyon(r.id)}
+                  onDelete={() => deleteReyon(r.id, r.name)}
+                />
+              ))}
+              {!defs?.reyonCategories.length && (
+                <li className="text-sm text-muted-foreground">
+                  Henüz reyon kategorisi yok
+                </li>
               )}
             </ul>
           </CardContent>

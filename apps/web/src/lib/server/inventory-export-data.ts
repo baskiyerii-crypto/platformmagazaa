@@ -15,6 +15,7 @@ export type InventoryExportRow = {
   label: string;
   subtype: string;
   konum: string;
+  reyon: string;
   en: string;
   boy: string;
   adet: string;
@@ -62,6 +63,7 @@ export async function fetchInventoryForExport(
         label: `${kindLabel} ${v.siraNo}`,
         subtype: v.avmEntry.subType.name,
         konum: v.konum ?? "",
+        reyon: "",
         en: String(v.en),
         boy: String(v.boy),
         adet: "1",
@@ -95,6 +97,7 @@ export async function fetchInventoryForExport(
         label: o.subType.name,
         subtype: o.subType.name,
         konum: "",
+        reyon: "",
         en: String(o.en),
         boy: String(o.boy),
         adet: String(o.adet),
@@ -112,6 +115,7 @@ export async function fetchInventoryForExport(
         store: { select: { id: true, name: true } },
         subType: { select: { name: true } },
         placement: { select: { name: true } },
+        reyonCategory: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
       take: EXPORT_MAX,
@@ -126,6 +130,7 @@ export async function fetchInventoryForExport(
         label: s.subType.name,
         subtype: s.subType.name,
         konum: s.placement.name,
+        reyon: s.reyonCategory?.name ?? "",
         en: String(s.en),
         boy: String(s.boy),
         adet: String(s.adet),
@@ -156,6 +161,7 @@ export async function fetchInventoryForExport(
         label: r.catalogItem.name,
         subtype: r.catalogItem.name,
         konum: "",
+        reyon: "",
         en: "",
         boy: "",
         adet: r.quantity != null ? String(r.quantity) : "",
@@ -184,7 +190,9 @@ export function exportRowToApiItem(row: InventoryExportRow) {
   if (row.type === "AVM_VITRIN") {
     label = `${row.storeName} · ${row.subtype} · ${row.label}`;
   } else if (row.type === "STORE_SIGNAGE") {
-    label = `${row.storeName} · ${row.subtype} · ${row.konum}`;
+    label = [row.storeName, row.subtype, row.konum, row.reyon]
+      .filter(Boolean)
+      .join(" · ");
   } else if (row.type === "OUTDOOR") {
     label = `${row.storeName} · ${row.subtype}`;
   }
@@ -199,6 +207,7 @@ export function exportRowToApiItem(row: InventoryExportRow) {
     adet: row.adet ? Number(row.adet) : undefined,
     quantity: row.type === "CATALOG_REQUEST" && row.adet ? Number(row.adet) : undefined,
     konum: row.konum || undefined,
+    reyon: row.reyon || undefined,
     kind: row.kind,
     camEn: row.camEn,
     camBoy: row.camBoy,
