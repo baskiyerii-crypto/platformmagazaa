@@ -6,21 +6,17 @@ import { colors, radius, spacing } from "@/components/theme";
 import { api } from "@/lib/auth";
 import { ADMIN_MENU } from "@/lib/menus";
 import { API_URL } from "@/lib/config";
-import { CHANGE_REQUEST_STATUS_LABELS, thumbUrl, type PaginatedResponse } from "@magaza/shared";
+import { thumbUrl, type PaginatedResponse } from "@magaza/shared";
 
 type InventoryItem = {
   id: string;
-  type: "AVM_VITRIN" | "OUTDOOR" | "CATALOG_REQUEST";
+  type: "AVM_VITRIN" | "OUTDOOR" | "STORE_SIGNAGE";
   label: string;
   store: { id: string; name: string };
   en?: number;
   boy?: number;
   adet?: number;
-  quantity?: number | null;
   gorselUrl?: string | null;
-  storeImageUrl?: string | null;
-  referenceImageUrl?: string | null;
-  status?: string;
 };
 
 type Store = { id: string; name: string };
@@ -28,12 +24,11 @@ type Store = { id: string; name: string };
 const TYPE_LABELS: Record<string, string> = {
   AVM_VITRIN: "AVM Vitrin",
   OUTDOOR: "Açık Hava",
-  CATALOG_REQUEST: "Ürün Talebi",
+  STORE_SIGNAGE: "Mağaza İçi",
 };
 
 function imageUrl(item: InventoryItem) {
-  const url = item.gorselUrl ?? item.storeImageUrl ?? item.referenceImageUrl;
-  const thumb = thumbUrl(url);
+  const thumb = thumbUrl(item.gorselUrl);
   return thumb ? `${API_URL}${thumb}` : null;
 }
 
@@ -82,11 +77,6 @@ export default function AdminInventory() {
         <Text style={styles.cardBody}>
           {item.en}×{item.boy} cm
           {item.adet ? ` · ${item.adet} adet` : ""}
-        </Text>
-      ) : null}
-      {item.status ? (
-        <Text style={styles.cardBody}>
-          {CHANGE_REQUEST_STATUS_LABELS[item.status as keyof typeof CHANGE_REQUEST_STATUS_LABELS] ?? item.status}
         </Text>
       ) : null}
       {imageUrl(item) ? (

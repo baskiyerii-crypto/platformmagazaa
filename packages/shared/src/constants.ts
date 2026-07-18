@@ -69,7 +69,7 @@ export const CATALOG_CAMPAIGN_MODE_LABELS: Record<CatalogCampaignMode, string> =
   PERIODIC: "Dönemlik",
 };
 
-export const INVENTORY_TYPES = ["AVM_VITRIN", "OUTDOOR", "STORE_SIGNAGE", "CATALOG_REQUEST"] as const;
+export const INVENTORY_TYPES = ["AVM_VITRIN", "OUTDOOR", "STORE_SIGNAGE"] as const;
 export type InventoryType = (typeof INVENTORY_TYPES)[number];
 
 export const AREA_CATEGORIES = ["AVM", "ACIK_HAVA", "MAGAZA_ICI"] as const;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Camera, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/status-badge";
@@ -20,8 +21,25 @@ type Request = {
   createdAt: string;
 };
 
+function pickImage(mode: "camera" | "gallery"): Promise<File | null> {
+  return new Promise((resolve) => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    if (mode === "camera") {
+      input.setAttribute("capture", "environment");
+    }
+    input.onchange = () => {
+      resolve(input.files?.[0] ?? null);
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}
+
 export function StoreRequestsManager() {
   const [requests, setRequests] = useState<Request[]>([]);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
 
   async function load() {
     const res = await fetch("/api/v1/change-requests");
@@ -29,15 +47,15 @@ export function StoreRequestsManager() {
     setRequests(Array.isArray(data) ? data : data.items ?? []);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
 
-  async function uploadImage(id: string) {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
+  async function uploadImage(id: string, mode: "camera" | "gallery") {
+    const file = await pickImage(mode);
+    if (!file) return;
+    setUploadingId(id);
+    try {
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch(`/api/v1/change-requests/${id}/upload-image`, {
@@ -45,13 +63,15 @@ export function StoreRequestsManager() {
         body: formData,
       });
       if (!res.ok) {
-        alert("Görsel yüklenemedi");
+        const body = await res.json().catch(() => null);
+        alert(body?.error ?? "Görsel yüklenemedi");
         return;
       }
       alert("Görsel yüklendi, müdür onayı bekleniyor");
-      load();
-    };
-    input.click();
+      await load();
+    } finally {
+      setUploadingId(null);
+    }
   }
 
   return (
@@ -76,9 +96,25 @@ export function StoreRequestsManager() {
               <div className="flex flex-col items-start gap-2 md:items-end">
                 <StatusBadge status={req.status} />
                 {canStoreUploadImage(req.status) && (
-                  <Button size="sm" onClick={() => uploadImage(req.id)}>
-                    Görseli Değiştir
-                  </Button>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      disabled={uploadingId === req.id}
+                      onClick={() => void uploadImage(req.id, "camera")}
+                    >
+                      <Camera className="mr-1.5 h-4 w-4" />
+                      Fotoğraf çek
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={uploadingId === req.id}
+                      onClick={() => void uploadImage(req.id, "gallery")}
+                    >
+                      <ImageIcon className="mr-1.5 h-4 w-4" />
+                      Galeriden seç
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardContent>

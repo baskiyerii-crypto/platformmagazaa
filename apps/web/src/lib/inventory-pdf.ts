@@ -6,7 +6,10 @@ import {
   fetchInventoryForExport,
   formatExportFilterSummary,
 } from "@/lib/server/inventory-export-data";
-import type { InventoryFilterOptions } from "@/lib/server/inventory-filters";
+import {
+  INVENTORY_EXPORT_MAX,
+  type InventoryFilterOptions,
+} from "@/lib/server/inventory-filters";
 
 const MARGIN = 36;
 const ROW_HEIGHT = 44;
@@ -33,6 +36,7 @@ export async function generateInventoryPdfBuffer(
   filters: InventoryFilterOptions
 ): Promise<Buffer> {
   const rows = await fetchInventoryForExport(filters);
+  const truncated = rows.length >= INVENTORY_EXPORT_MAX;
   const doc = new PDFDocument({
     size: "A4",
     layout: "landscape",
@@ -58,7 +62,10 @@ export async function generateInventoryPdfBuffer(
   y += 20;
   doc.fontSize(9).font("Helvetica").text(formatExportFilterSummary(filters), MARGIN, y);
   y += 14;
-  doc.fontSize(8).text(`Toplam: ${rows.length} kayıt · ${new Date().toLocaleString("tr-TR")}`, MARGIN, y);
+  const totalLine = truncated
+    ? `Toplam: ${rows.length} kayıt (en fazla ${INVENTORY_EXPORT_MAX}) · ${new Date().toLocaleString("tr-TR")}`
+    : `Toplam: ${rows.length} kayıt · ${new Date().toLocaleString("tr-TR")}`;
+  doc.fontSize(8).text(totalLine, MARGIN, y);
   y += 18;
 
   function drawHeader() {

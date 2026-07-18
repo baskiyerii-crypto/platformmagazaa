@@ -16,7 +16,7 @@ export const GET = withAuth(
     const type = searchParams.get("type");
     const search = searchParams.get("search")?.trim();
 
-    const { vitrinWhere, outdoorWhere, signageWhere, catalogWhere } = buildInventoryWheres({
+    const { vitrinWhere, outdoorWhere, signageWhere } = buildInventoryWheres({
       storeId: storeFilter,
       search,
     });
@@ -119,34 +119,6 @@ export const GET = withAuth(
         adet: s.adet,
         gorselUrl: s.gorselUrl,
         createdAt: s.createdAt,
-      }));
-      return NextResponse.json(paginatedResponse(items, total, page, limit));
-    }
-
-    if (type === "CATALOG_REQUEST") {
-      const [catalogReqs, total] = await Promise.all([
-        prisma.catalogRequest.findMany({
-          where: catalogWhere,
-          include: {
-            store: { select: { id: true, name: true } },
-            catalogItem: { select: { id: true, name: true, referenceImageUrl: true } },
-          },
-          orderBy: { createdAt: "desc" },
-          skip,
-          take,
-        }),
-        prisma.catalogRequest.count({ where: catalogWhere }),
-      ]);
-      const items = catalogReqs.map((r) => ({
-        id: r.id,
-        type: "CATALOG_REQUEST",
-        store: r.store,
-        label: `${r.store.name} · ${r.catalogItem.name}`,
-        quantity: r.quantity,
-        status: r.status,
-        storeImageUrl: r.storeImageUrl,
-        referenceImageUrl: r.catalogItem.referenceImageUrl,
-        createdAt: r.createdAt,
       }));
       return NextResponse.json(paginatedResponse(items, total, page, limit));
     }

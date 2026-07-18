@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useState } from "react";
 import Image from "next/image";
+import { Camera, ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { thumbUrl } from "@magaza/shared";
@@ -24,7 +25,8 @@ export function ImageUploadPreview({
   required,
   replaceHint,
 }: Props) {
-  const inputId = useId();
+  const galleryId = useId();
+  const cameraId = useId();
   const [preview, setPreview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -37,21 +39,22 @@ export function ImageUploadPreview({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const pickLabel = file
-    ? "Başka dosya seç"
-    : existingUrl
-      ? "Görseli değiştir"
-      : "Dosya seç";
+  function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
+    const selected = e.target.files?.[0] ?? null;
+    onFileChange(selected);
+    // aynı dosyayı tekrar seçebilsin
+    e.target.value = "";
+  }
 
   return (
     <div className="space-y-3">
-      <Label htmlFor={inputId}>
+      <Label>
         {label}
         {required ? " *" : ""}
       </Label>
       {replaceHint && existingUrl && !file && (
         <p className="text-xs text-muted-foreground">
-          İlk yüklenen görseli değiştirmek için &quot;Görseli değiştir&quot;e tıklayın.
+          İlk yüklenen görseli değiştirmek için kamera veya galeri seçin.
         </p>
       )}
       {file && (
@@ -99,21 +102,33 @@ export function ImageUploadPreview({
       </div>
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" asChild>
-          <label htmlFor={inputId} className="cursor-pointer">
-            {pickLabel}
+          <label htmlFor={cameraId} className="cursor-pointer">
+            <Camera className="mr-1.5 h-4 w-4" />
+            Fotoğraf çek
           </label>
         </Button>
+        <Button type="button" variant="outline" size="sm" asChild>
+          <label htmlFor={galleryId} className="cursor-pointer">
+            <ImageIcon className="mr-1.5 h-4 w-4" />
+            {file ? "Başka dosya seç" : existingUrl ? "Galeriden değiştir" : "Galeriden seç"}
+          </label>
+        </Button>
+        {/* Camera: rear camera on mobile; desktop falls back to file picker */}
         <input
-          id={inputId}
+          id={cameraId}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          className="sr-only"
+          onChange={handlePick}
+        />
+        {/* Gallery / files — no capture so OS shows album chooser */}
+        <input
+          id={galleryId}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/*"
           className="sr-only"
-          onChange={(e) => {
-            const selected = e.target.files?.[0] ?? null;
-            onFileChange(selected);
-            // aynı dosyayı tekrar seçebilsin
-            e.target.value = "";
-          }}
+          onChange={handlePick}
         />
         {file && (
           <Button type="button" variant="ghost" size="sm" onClick={() => onFileChange(null)}>

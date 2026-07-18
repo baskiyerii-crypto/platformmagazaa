@@ -118,12 +118,24 @@ const expenseInclude = {
   createdBy: { select: { id: true, username: true } },
 } as const;
 
+const AD_EXPENSE_BATCH = 1000;
+
 export async function listAdExpenses(filters: AdExpenseFilters) {
-  const items = await prisma.adExpense.findMany({
-    where: buildAdExpenseWhere(filters),
-    include: expenseInclude,
-    orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
-  });
+  const where = buildAdExpenseWhere(filters);
+  const items = [];
+  let skip = 0;
+  for (;;) {
+    const batch = await prisma.adExpense.findMany({
+      where,
+      include: expenseInclude,
+      orderBy: [{ expenseDate: "desc" }, { createdAt: "desc" }],
+      skip,
+      take: AD_EXPENSE_BATCH,
+    });
+    items.push(...batch);
+    if (batch.length < AD_EXPENSE_BATCH) break;
+    skip += batch.length;
+  }
   return items.map(serializeExpense);
 }
 

@@ -113,6 +113,8 @@ async function createSingleRequest(args: {
   storeImageUrl: string | null;
   userId: string;
   notify: boolean;
+  /** When set, item must belong to this campaign. When null, item must be continuous product. */
+  expectedCampaignId?: string | null;
 }) {
   const catalogItem = await prisma.catalogItem.findUnique({
     where: { id: args.catalogItemId },
@@ -121,6 +123,17 @@ async function createSingleRequest(args: {
   if (!catalogItem || !catalogItem.active) {
     throw new Error("Ürün bulunamadı");
   }
+
+  const itemCampaignId = catalogItem.campaignId ?? null;
+  if (args.expectedCampaignId !== undefined) {
+    if (args.expectedCampaignId === null && itemCampaignId !== null) {
+      throw new Error("Kampanya ürünü sürekli ihtiyaç listesine eklenemez");
+    }
+    if (args.expectedCampaignId !== null && itemCampaignId !== args.expectedCampaignId) {
+      throw new Error("Ürün seçilen kampanyaya ait değil");
+    }
+  }
+
   if (catalogItem.campaign && !isCampaignOpenForRequests(catalogItem.campaign)) {
     throw new Error("Bu kampanya şu an talep kabul etmiyor");
   }
@@ -129,6 +142,7 @@ async function createSingleRequest(args: {
     where: {
       storeId: args.storeId,
       catalogItemId: args.catalogItemId,
+      campaignId: itemCampaignId,
       status: { notIn: CLOSED_STATUSES },
     },
   });
@@ -138,7 +152,7 @@ async function createSingleRequest(args: {
       where: { id: openRequest.id },
       data: {
         quantity: args.quantity,
-        campaignId: catalogItem.campaignId ?? null,
+        campaignId: itemCampaignId,
         note: args.note,
         ...(args.storeImageUrl ? { storeImageUrl: args.storeImageUrl } : {}),
       },
@@ -158,7 +172,7 @@ async function createSingleRequest(args: {
   const catalogRequest = await prisma.catalogRequest.create({
     data: {
       storeId: args.storeId,
-      campaignId: catalogItem.campaignId ?? null,
+      campaignId: itemCampaignId,
       catalogItemId: args.catalogItemId,
       quantity: args.quantity,
       note: args.note,
@@ -178,11 +192,12 @@ async function createSingleRequest(args: {
   );
 
   if (args.notify) {
+    const isCampaign = itemCampaignId != null;
     await notifyStaff({
       type: "CATALOG_REQUEST",
-      title: "Yeni Ürün Talebi",
+      title: isCampaign ? "Yeni Kampanya Talebi" : "Yeni Ürün Talebi",
       body: `${catalogRequest.store.name} — ${catalogItem.name} — ${args.quantity} adet`,
-      linkUrl: "/admin/requests",
+      linkUrl: isCampaign ? "/admin/campaign-requests" : "/admin/requests",
     });
   }
 
@@ -278,6 +293,7 @@ export const POST = withAuth(async (request, auth) => {
           storeImageUrl: null,
           userId: auth.userId,
           notify: false,
+          expectedCampaignId: campaign.id,
         });
         results.push(result.request);
       } catch (e) {
@@ -295,7 +311,7 @@ export const POST = withAuth(async (request, auth) => {
         type: "CATALOG_REQUEST",
         title: "Kampanya Adet Bildirimi",
         body: `${store?.name ?? "Mağaza"} — ${campaign.name} — ${parsed.data.items.length} ürün / ${totalQty} adet`,
-        linkUrl: "/admin/requests",
+        linkUrl: "/admin/campaign-requests",
       });
     }
 
@@ -312,6 +328,10 @@ export const POST = withAuth(async (request, auth) => {
   }
 
   try {
+    const expectedCampaignId =
+      typeof body.campaignId === "string" && body.campaignId
+        ? body.campaignId
+        : null;
     const { request: catalogRequest } = await createSingleRequest({
       storeId,
       catalogItemId: parsed.data.catalogItemId,
@@ -320,6 +340,7 @@ export const POST = withAuth(async (request, auth) => {
       storeImageUrl,
       userId: auth.userId,
       notify: auth.role === "STORE",
+      expectedCampaignId,
     });
     return NextResponse.json(catalogRequest, { status: 201 });
   } catch (e) {

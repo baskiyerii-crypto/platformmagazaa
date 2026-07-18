@@ -5,7 +5,10 @@ import {
   fetchInventoryForExport,
   formatExportFilterSummary,
 } from "@/lib/server/inventory-export-data";
-import type { InventoryFilterOptions } from "@/lib/server/inventory-filters";
+import {
+  INVENTORY_EXPORT_MAX,
+  type InventoryFilterOptions,
+} from "@/lib/server/inventory-filters";
 import { groupSizesWithTolerance } from "@/lib/size-groups";
 import { addSizeSummarySheet } from "@/lib/requests-excel";
 
@@ -15,6 +18,7 @@ export async function generateInventoryExcelBuffer(
   filters: InventoryFilterOptions
 ): Promise<Buffer> {
   const rows = await fetchInventoryForExport(filters);
+  const truncated = rows.length >= INVENTORY_EXPORT_MAX;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Reklam Platform";
   workbook.created = new Date();
@@ -34,7 +38,10 @@ export async function generateInventoryExcelBuffer(
   sheet.getColumn(12).width = 20;
   sheet.getColumn(13).width = 48;
 
-  sheet.addRow([`Filtre: ${formatExportFilterSummary(filters)}`]);
+  const filterLine = truncated
+    ? `Filtre: ${formatExportFilterSummary(filters)} · Uyarı: tür başına en fazla ${INVENTORY_EXPORT_MAX} kayıt gösterilir`
+    : `Filtre: ${formatExportFilterSummary(filters)}`;
+  sheet.addRow([filterLine]);
   sheet.mergeCells(1, 1, 1, 13);
   sheet.getRow(1).font = { italic: true, size: 10 };
 

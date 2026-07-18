@@ -49,6 +49,17 @@ export const PATCH = withAuthParams<{ id: string }>(
       data = await request.json();
     }
 
+    const existing = await prisma.catalogItem.findUnique({ where: { id } });
+    if (!existing) return jsonError("Ürün bulunamadı", 404);
+
+    const existingIsCampaign = existing.campaignId != null;
+    if (scope === "product" && existingIsCampaign) {
+      return jsonError("Bu kayıt kampanya ürünüdür; ürün kataloğundan güncellenemez", 400);
+    }
+    if (scope === "campaign" && !existingIsCampaign) {
+      return jsonError("Bu kayıt sürekli ihtiyaç ürünüdür; kampanya kataloğundan güncellenemez", 400);
+    }
+
     // Product updates must stay outside campaigns.
     if (scope === "product") {
       data.campaignId = null;
@@ -61,8 +72,6 @@ export const PATCH = withAuthParams<{ id: string }>(
     }
 
     if (scope === "campaign" && (parsed.data.campaignId || parsed.data.categoryId)) {
-      const existing = await prisma.catalogItem.findUnique({ where: { id } });
-      if (!existing) return jsonError("Ürün bulunamadı", 404);
       const campaignId = parsed.data.campaignId ?? existing.campaignId;
       const categoryId = parsed.data.categoryId ?? existing.categoryId;
       if (campaignId && categoryId) {

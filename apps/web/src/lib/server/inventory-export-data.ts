@@ -1,7 +1,7 @@
 import { prisma } from "@magaza/database";
-import { CHANGE_REQUEST_STATUS_LABELS, CHANGE_REQUEST_STATUSES, type ChangeRequestStatus } from "@magaza/shared";
 import {
   buildInventoryWheres,
+  INVENTORY_EXPORT_MAX,
   INVENTORY_TYPE_LABELS,
   type InventoryFilterOptions,
 } from "@/lib/server/inventory-filters";
@@ -27,14 +27,11 @@ export type InventoryExportRow = {
   camBoy?: number | null;
 };
 
-const EXPORT_MAX = 5000;
-
 export async function fetchInventoryForExport(
   options: InventoryFilterOptions
 ): Promise<InventoryExportRow[]> {
   const type = options.type || undefined;
-  const { vitrinWhere, outdoorWhere, signageWhere, catalogWhere } =
-    buildInventoryWheres(options);
+  const { vitrinWhere, outdoorWhere, signageWhere } = buildInventoryWheres(options);
 
   const rows: InventoryExportRow[] = [];
 
@@ -50,7 +47,7 @@ export async function fetchInventoryForExport(
         },
       },
       orderBy: { createdAt: "desc" },
-      take: EXPORT_MAX,
+      take: INVENTORY_EXPORT_MAX,
     });
     for (const v of vitrins) {
       const kindLabel = v.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin";
@@ -85,7 +82,7 @@ export async function fetchInventoryForExport(
         subType: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: EXPORT_MAX,
+      take: INVENTORY_EXPORT_MAX,
     });
     for (const o of outdoor) {
       rows.push({
@@ -118,7 +115,7 @@ export async function fetchInventoryForExport(
         reyonCategory: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: EXPORT_MAX,
+      take: INVENTORY_EXPORT_MAX,
     });
     for (const s of signage) {
       rows.push({
@@ -141,40 +138,9 @@ export async function fetchInventoryForExport(
     }
   }
 
-  if (!type || type === "CATALOG_REQUEST") {
-    const catalogReqs = await prisma.catalogRequest.findMany({
-      where: catalogWhere,
-      include: {
-        store: { select: { id: true, name: true } },
-        catalogItem: { select: { name: true, referenceImageUrl: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: EXPORT_MAX,
-    });
-    for (const r of catalogReqs) {
-      rows.push({
-        id: r.id,
-        type: "CATALOG_REQUEST",
-        typeLabel: INVENTORY_TYPE_LABELS.CATALOG_REQUEST,
-        storeId: r.store.id,
-        storeName: r.store.name,
-        label: r.catalogItem.name,
-        subtype: r.catalogItem.name,
-        konum: "",
-        reyon: "",
-        en: "",
-        boy: "",
-        adet: r.quantity != null ? String(r.quantity) : "",
-        status: r.status,
-        imageUrl: r.storeImageUrl ?? r.catalogItem.referenceImageUrl,
-        createdAt: r.createdAt,
-      });
-    }
-  }
-
   return rows
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, EXPORT_MAX);
+    .slice(0, INVENTORY_EXPORT_MAX);
 }
 
 export function formatExportFilterSummary(options: InventoryFilterOptions): string {
@@ -182,7 +148,7 @@ export function formatExportFilterSummary(options: InventoryFilterOptions): stri
   if (options.storeId) parts.push(`Mağaza filtresi aktif`);
   if (options.type) parts.push(`Tür: ${INVENTORY_TYPE_LABELS[options.type] ?? options.type}`);
   if (options.search) parts.push(`Arama: ${options.search}`);
-  return parts.length ? parts.join(" · ") : "Tüm kayıtlar";
+  return parts.length ? parts.join(" · ") : "Tüm görsel envanter kayıtları";
 }
 
 export function exportRowToApiItem(row: InventoryExportRow) {
@@ -205,16 +171,12 @@ export function exportRowToApiItem(row: InventoryExportRow) {
     en: row.en ? Number(row.en) : undefined,
     boy: row.boy ? Number(row.boy) : undefined,
     adet: row.adet ? Number(row.adet) : undefined,
-    quantity: row.type === "CATALOG_REQUEST" && row.adet ? Number(row.adet) : undefined,
     konum: row.konum || undefined,
     reyon: row.reyon || undefined,
     kind: row.kind,
     camEn: row.camEn,
     camBoy: row.camBoy,
-    gorselUrl: row.type !== "CATALOG_REQUEST" ? row.imageUrl : undefined,
-    storeImageUrl: row.type === "CATALOG_REQUEST" ? row.imageUrl : undefined,
-    referenceImageUrl: row.type === "CATALOG_REQUEST" ? row.imageUrl : undefined,
-    status: row.status ? (CHANGE_REQUEST_STATUSES.includes(row.status as ChangeRequestStatus) ? row.status as ChangeRequestStatus : undefined) : undefined,
+    gorselUrl: row.imageUrl,
     createdAt: row.createdAt,
   };
 }
@@ -228,5 +190,7 @@ export async function fetchInventoryPageFromExport(
   return {
     items: slice.map(exportRowToApiItem),
     total,
+    truncated: all.length >= INVENTORY_EXPORT_MAX,
+    exportMax: INVENTORY_EXPORT_MAX,
   };
 }

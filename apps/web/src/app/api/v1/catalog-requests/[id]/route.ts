@@ -85,11 +85,12 @@ export const PATCH = withAuthParams<{ id: string }>(async (request, auth, contex
     parsed.data.adminNote
   );
 
+  const isCampaign = catalogRequest.campaignId != null;
   await notifyStoreUsers(catalogRequest.storeId, {
     type: "CATALOG_REQUEST",
-    title: "Ürün Talebi Güncellendi",
+    title: isCampaign ? "Kampanya Talebi Güncellendi" : "Ürün Talebi Güncellendi",
     body: `${updated.catalogItem.name} — ${parsed.data.status}`,
-    linkUrl: "/store/catalog",
+    linkUrl: isCampaign ? "/store/catalog" : "/store/products",
   });
 
   return NextResponse.json(updated);

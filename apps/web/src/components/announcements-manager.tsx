@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Camera, ImageIcon, Pencil, Plus, Trash2 } from "lucide-react";
 import { fetchSlimStores } from "@/lib/stores-cache";
 import { useIsStrictAdmin } from "@/lib/role-context";
 import { Button } from "@/components/ui/button";
@@ -577,8 +577,10 @@ export function StoreAnnouncementsView() {
   const [previewsById, setPreviewsById] = useState<Record<string, string[]>>({});
   const [error, setError] = useState("");
   const [replacingUrl, setReplacingUrl] = useState<string | null>(null);
-  const addInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const replaceInputRef = useRef<HTMLInputElement | null>(null);
+  const addGalleryRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const addCameraRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const replaceGalleryRef = useRef<HTMLInputElement | null>(null);
+  const replaceCameraRef = useRef<HTMLInputElement | null>(null);
 
   async function load() {
     const res = await fetch("/api/v1/announcements", { cache: "no-store" });
@@ -778,11 +780,30 @@ export function StoreAnnouncementsView() {
       <PageHeader title="Duyurular" subtitle="Okuyun, işleme alın, görsel ekleyerek tamamlayın" />
       {error ? <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{error}</p> : null}
 
-      {/* Tek gizli input — değiştirme için */}
+      {/* Değiştirme: galeri + kamera */}
       <input
-        ref={replaceInputRef}
+        ref={replaceGalleryRef}
         type="file"
         accept="image/jpeg,image/png,image/webp,image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          const announcementId = items.find((x) =>
+            (x.receipt?.completionImages ?? []).includes(replacingUrl ?? "")
+          )?.id;
+          e.target.value = "";
+          if (file && replacingUrl && announcementId) {
+            void replaceImage(announcementId, replacingUrl, file);
+          } else {
+            setReplacingUrl(null);
+          }
+        }}
+      />
+      <input
+        ref={replaceCameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -850,19 +871,34 @@ export function StoreAnnouncementsView() {
                         >
                           <Image src={thumbUrl(url) ?? url} alt="" fill className="object-cover" unoptimized />
                         </a>
-                        <div className="flex gap-1">
+                        <div className="flex flex-wrap gap-1">
                           <Button
                             type="button"
                             size="sm"
                             variant="outline"
                             className="h-7 flex-1 px-1 text-[10px]"
                             disabled={busy}
+                            title="Kameradan değiştir"
                             onClick={() => {
                               setReplacingUrl(url);
-                              replaceInputRef.current?.click();
+                              replaceCameraRef.current?.click();
                             }}
                           >
-                            Değiştir
+                            <Camera className="h-3 w-3" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 flex-1 px-1 text-[10px]"
+                            disabled={busy}
+                            title="Galeriden değiştir"
+                            onClick={() => {
+                              setReplacingUrl(url);
+                              replaceGalleryRef.current?.click();
+                            }}
+                          >
+                            <ImageIcon className="h-3 w-3" />
                           </Button>
                           <Button
                             type="button"
@@ -894,20 +930,43 @@ export function StoreAnnouncementsView() {
                       </div>
                     ))}
 
-                    {/* + kutusu */}
                     <button
                       type="button"
                       disabled={busy}
-                      title="Görsel ekle"
-                      onClick={() => addInputRefs.current[a.id]?.click()}
+                      title="Kameradan ekle"
+                      onClick={() => addCameraRefs.current[a.id]?.click()}
                       className="flex h-20 w-24 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-muted-foreground/40 bg-background text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-50"
                     >
-                      <Plus className="h-6 w-6" />
-                      <span className="text-[10px]">Ekle</span>
+                      <Camera className="h-5 w-5" />
+                      <span className="text-[10px]">Kamera</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title="Galeriden ekle"
+                      onClick={() => addGalleryRefs.current[a.id]?.click()}
+                      className="flex h-20 w-24 flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-muted-foreground/40 bg-background text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-50"
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span className="text-[10px]">Galeri</span>
                     </button>
                     <input
                       ref={(el) => {
-                        addInputRefs.current[a.id] = el;
+                        addCameraRefs.current[a.id] = el;
+                      }}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      disabled={busy}
+                      onChange={(e) => {
+                        void onPlusFilesSelected(a.id, e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                    <input
+                      ref={(el) => {
+                        addGalleryRefs.current[a.id] = el;
                       }}
                       type="file"
                       accept="image/jpeg,image/png,image/webp,image/*"

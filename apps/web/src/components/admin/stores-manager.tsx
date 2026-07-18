@@ -23,6 +23,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
+import { downloadExcelBlob } from "@/lib/download-excel";
 
 type StoreUser = { id: string; username: string; createdAt?: string };
 
@@ -136,6 +137,21 @@ export function StoresManager() {
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  }
+
+  async function downloadStoresExcel() {
+    setLoading(true);
+    setError("");
+    try {
+      await downloadExcelBlob(
+        "/api/v1/admin/export/stores",
+        `magazalar-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Mağaza listesi indirilemedi");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleImportFile(file: File) {
@@ -285,7 +301,24 @@ export function StoresManager() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Mağazalar" subtitle="Mağaza ve kullanıcı yönetimi" />
+      <PageHeader
+        title="Mağazalar"
+        subtitle="Mağaza ve kullanıcı yönetimi"
+        action={
+          canManage ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => void downloadStoresExcel()}
+            >
+              <Download className="mr-1.5 h-4 w-4" />
+              Mağazaları Excel İndir
+            </Button>
+          ) : undefined
+        }
+      />
 
       {isAdmin && (
         <section className="panel-section space-y-4">

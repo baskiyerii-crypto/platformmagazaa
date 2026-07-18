@@ -190,12 +190,24 @@ export function RequestsManager() {
     setExportError("");
     const params = buildExportParams(true);
     params.set("format", "excel");
-    params.set("tab", tab === "catalog" ? "catalog" : "all");
+    // Respect current tab — visual change requests vs continuous product requests
+    if (tab === "visual") {
+      params.set("tab", "visual");
+      params.delete("scope");
+    } else if (tab === "catalog") {
+      params.set("tab", "catalog");
+      params.set("scope", "product");
+    } else {
+      params.set("tab", "all");
+    }
+    const filename =
+      tab === "visual"
+        ? `gorsel-talepler-${new Date().toISOString().slice(0, 10)}.xlsx`
+        : tab === "catalog"
+          ? `urun-talepleri-${new Date().toISOString().slice(0, 10)}.xlsx`
+          : `talepler-${new Date().toISOString().slice(0, 10)}.xlsx`;
     try {
-      await downloadExcelBlob(
-        `/api/v1/admin/export/requests?${params}`,
-        `talepler-${new Date().toISOString().slice(0, 10)}.xlsx`
-      );
+      await downloadExcelBlob(`/api/v1/admin/export/requests?${params}`, filename);
     } catch (e) {
       setExportError(e instanceof Error ? e.message : "Excel indirilemedi");
     } finally {
@@ -332,7 +344,13 @@ export function RequestsManager() {
         </div>
         <Button onClick={downloadRequestsExcel} disabled={exporting}>
           <Download className="mr-2 h-4 w-4" />
-          {exporting ? "Hazırlanıyor..." : tab === "catalog" ? "Kampanya Excel İndir" : "Tüm talepleri indir (Excel)"}
+          {exporting
+            ? "Hazırlanıyor..."
+            : tab === "catalog"
+              ? "Ürün taleplerini indir (Excel)"
+              : tab === "visual"
+                ? "Görsel talepleri indir (Excel)"
+                : "Tüm talepleri indir (Excel)"}
         </Button>
       </div>
       {exportError ? <p className="text-sm text-destructive">{exportError}</p> : null}

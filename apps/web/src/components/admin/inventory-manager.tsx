@@ -61,7 +61,6 @@ const TYPE_LABELS: Record<string, string> = {
   AVM_VITRIN: "AVM Vitrin",
   OUTDOOR: "Açık Hava",
   STORE_SIGNAGE: "Mağaza İçi",
-  CATALOG_REQUEST: "Ürün Talebi",
 };
 
 function deleteUrlFor(item: InventoryItem): string | null {
@@ -72,8 +71,6 @@ function deleteUrlFor(item: InventoryItem): string | null {
       return `/api/v1/store/outdoor-entries/${item.id}`;
     case "STORE_SIGNAGE":
       return `/api/v1/store/signage-entries/${item.id}`;
-    case "CATALOG_REQUEST":
-      return `/api/v1/catalog-requests/${item.id}`;
     default:
       return null;
   }
@@ -140,7 +137,7 @@ function InventoryListRow({
   onDelete: (item: InventoryItem) => void;
   busy: boolean;
 }) {
-  const imageUrl = item.gorselUrl ?? item.storeImageUrl ?? item.referenceImageUrl;
+  const imageUrl = item.gorselUrl;
   const editUrl = patchUrlFor(item);
   const removeUrl = deleteUrlFor(item);
 
@@ -198,11 +195,6 @@ function InventoryListRow({
             className="min-w-[8rem] font-semibold"
           >
             <Trash2 className="mr-1 h-4 w-4" /> Sil
-          </Button>
-        )}
-        {item.type === "CATALOG_REQUEST" && (
-          <Button size="default" variant="outline" asChild className="min-w-[8rem]">
-            <Link href="/admin/requests">Talepler</Link>
           </Button>
         )}
       </div>
@@ -323,7 +315,7 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   }
 
   function img(item: InventoryItem) {
-    return item.gorselUrl ?? item.storeImageUrl ?? item.referenceImageUrl;
+    return item.gorselUrl;
   }
 
   function onInventoryAdded() {
@@ -525,7 +517,6 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
               <option value="AVM_VITRIN">AVM Vitrin</option>
               <option value="OUTDOOR">Açık Hava</option>
               <option value="STORE_SIGNAGE">Mağaza İçi</option>
-              <option value="CATALOG_REQUEST">Ürün Talebi</option>
             </select>
           </div>
           <div className="space-y-1.5 sm:col-span-2">

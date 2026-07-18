@@ -36,15 +36,6 @@ export function buildInventoryWheres(options: InventoryFilterOptions) {
       }
     : {};
 
-  const searchCatalog = search
-    ? {
-        OR: [
-          { store: { name: { contains: search, mode: "insensitive" as const } } },
-          { catalogItem: { name: { contains: search, mode: "insensitive" as const } } },
-        ],
-      }
-    : {};
-
   return {
     vitrinWhere: {
       ...(storeFilter ? { avmEntry: { storeId: storeFilter } } : {}),
@@ -58,10 +49,6 @@ export function buildInventoryWheres(options: InventoryFilterOptions) {
       ...(storeFilter ? { storeId: storeFilter } : {}),
       ...searchSignage,
     },
-    catalogWhere: {
-      ...(storeFilter ? { storeId: storeFilter } : {}),
-      ...searchCatalog,
-    },
   };
 }
 
@@ -69,5 +56,7 @@ export const INVENTORY_TYPE_LABELS: Record<string, string> = {
   AVM_VITRIN: "AVM Vitrin",
   OUTDOOR: "Açık Hava",
   STORE_SIGNAGE: "Mağaza İçi",
-  CATALOG_REQUEST: "Ürün Talebi",
 };
+
+/** Soft per-type cap for inventory exports — surfaced in export meta. */
+export const INVENTORY_EXPORT_MAX = 5000;

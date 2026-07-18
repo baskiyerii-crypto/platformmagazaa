@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
+import { downloadExcelBlob } from "@/lib/download-excel";
 
 type Store = { id: string; name: string };
 type Category = { id: string; name: string; code?: string | null; active: boolean; sortOrder: number };
@@ -195,7 +196,7 @@ export function AdminAdExpensesManager() {
     await loadData();
   }
 
-  function downloadExcel(link?: "campaign" | "general") {
+  async function downloadExcel(link?: "campaign" | "general") {
     const p = new URLSearchParams();
     if (period) p.set("period", period);
     if (categoryId) p.set("categoryId", categoryId);
@@ -209,7 +210,15 @@ export function AdminAdExpensesManager() {
     }
     if (link) p.set("link", link);
     p.set("format", "excel");
-    window.open(`/api/v1/admin/export/ad-expenses?${p.toString()}`, "_blank");
+    const type = link === "campaign" ? "kampanya" : link === "general" ? "ozel" : "tum";
+    try {
+      await downloadExcelBlob(
+        `/api/v1/admin/export/ad-expenses?${p.toString()}`,
+        `reklam-giderleri-${type}-${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Excel indirilemedi");
+    }
   }
 
   function ExpenseTable({ rows, showCampaign }: { rows: Expense[]; showCampaign: boolean }) {
@@ -443,7 +452,7 @@ export function AdminAdExpensesManager() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge>Kampanya</Badge>
-            <Button size="sm" onClick={() => downloadExcel("campaign")}>
+            <Button size="sm" onClick={() => void downloadExcel("campaign")}>
               <Download className="mr-1 h-4 w-4" /> Kampanya Raporu İndir
             </Button>
           </div>
@@ -463,7 +472,7 @@ export function AdminAdExpensesManager() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="secondary">Özel</Badge>
-            <Button size="sm" variant="secondary" onClick={() => downloadExcel("general")}>
+            <Button size="sm" variant="secondary" onClick={() => void downloadExcel("general")}>
               <Download className="mr-1 h-4 w-4" /> Özel Rapor İndir
             </Button>
           </div>
@@ -474,7 +483,7 @@ export function AdminAdExpensesManager() {
       </Card>
 
       <div className="flex justify-end">
-        <Button variant="outline" onClick={() => downloadExcel()}>
+        <Button variant="outline" onClick={() => void downloadExcel()}>
           <Download className="mr-1 h-4 w-4" /> Tüm Giderleri Birlikte İndir
         </Button>
       </div>
