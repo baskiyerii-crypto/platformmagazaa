@@ -2,12 +2,13 @@ import { useEffect, useState, useCallback } from "react";
 import { Text, View, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { ListScreen } from "@/components/list-screen";
-import { Card, PrimaryButton, StatusPill, styles } from "@/components/ui";
+import { Card, PrimaryButton, SecondaryButton, StatusPill, styles } from "@/components/ui";
 import { api, getToken } from "@/lib/auth";
 import { API_URL } from "@/lib/config";
 import { STORE_MENU } from "@/lib/menus";
 import {
   CHANGE_REQUEST_STATUS_LABELS,
+  canStoreDeleteChangeRequest,
   canStoreUploadImage,
   changeTargetTypeLabel,
   type ChangeRequestStatus,
@@ -72,6 +73,24 @@ export default function StoreRequests() {
     Alert.alert("Başarılı", "Görsel yüklendi, müdür onayı bekleniyor");
   }
 
+  function confirmDelete(id: string) {
+    Alert.alert("Talebi Sil", "Bu talep silinsin mi?", [
+      { text: "İptal", style: "cancel" },
+      {
+        text: "Sil",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await api.delete(`/api/v1/change-requests/${id}`);
+            load();
+          } catch (e) {
+            Alert.alert("Hata", e instanceof Error ? e.message : "Talep silinemedi");
+          }
+        },
+      },
+    ]);
+  }
+
   const renderItem = useCallback(({ item: req }: { item: Request }) => (
     <Card>
       <Text style={styles.cardTitle}>{changeTargetTypeLabel(req.targetType)}</Text>
@@ -84,11 +103,16 @@ export default function StoreRequests() {
       <View style={{ marginTop: 12 }}>
         <StatusPill label={CHANGE_REQUEST_STATUS_LABELS[req.status]} backgroundColor="#D1FAE5" />
       </View>
-      {canStoreUploadImage(req.status) && (
-        <View style={styles.cardActions}>
+      <View style={styles.cardActions}>
+        {canStoreUploadImage(req.status) && (
           <PrimaryButton label="Görseli Değiştir" onPress={() => uploadImage(req.id)} />
-        </View>
-      )}
+        )}
+        {canStoreDeleteChangeRequest(req.status) && (
+          <View style={{ marginTop: 8 }}>
+            <SecondaryButton label="Talebi Sil" onPress={() => confirmDelete(req.id)} />
+          </View>
+        )}
+      </View>
     </Card>
   ), []);
 

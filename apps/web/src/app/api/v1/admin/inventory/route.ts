@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@magaza/database";
 import { withAuth } from "@/lib/api-auth";
-import { parsePagination, paginatedResponse } from "@magaza/shared";
+import { parsePagination, paginatedResponse, normalizeMediaUrl } from "@magaza/shared";
 import { fetchInventoryPageFromExport } from "@/lib/server/inventory-export-data";
 import { buildInventoryWheres } from "@/lib/server/inventory-filters";
 
 function buildStoreFilter(storeId: string | null, authStoreId?: string | null) {
   return storeId ?? authStoreId ?? undefined;
+}
+
+function withNormalizedImage<T extends { gorselUrl?: string | null }>(item: T): T {
+  return {
+    ...item,
+    gorselUrl: normalizeMediaUrl(item.gorselUrl) ?? item.gorselUrl,
+  };
 }
 
 export const GET = withAuth(
@@ -64,7 +71,9 @@ export const GET = withAuth(
         gorselUrl: v.gorselUrl,
         createdAt: v.createdAt,
       }));
-      return NextResponse.json(paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit));
+      return NextResponse.json(
+        paginatedResponse(items.map(withNormalizedImage), total, page, fetchAll ? Math.max(total, 1) : limit)
+      );
     }
 
     if (type === "OUTDOOR") {
@@ -92,7 +101,9 @@ export const GET = withAuth(
         gorselUrl: o.gorselUrl,
         createdAt: o.createdAt,
       }));
-      return NextResponse.json(paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit));
+      return NextResponse.json(
+        paginatedResponse(items.map(withNormalizedImage), total, page, fetchAll ? Math.max(total, 1) : limit)
+      );
     }
 
     if (type === "STORE_SIGNAGE") {
@@ -131,7 +142,9 @@ export const GET = withAuth(
         gorselUrl: s.gorselUrl,
         createdAt: s.createdAt,
       }));
-      return NextResponse.json(paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit));
+      return NextResponse.json(
+        paginatedResponse(items.map(withNormalizedImage), total, page, fetchAll ? Math.max(total, 1) : limit)
+      );
     }
 
     const { items, total } = await fetchInventoryPageFromExport({
@@ -142,7 +155,12 @@ export const GET = withAuth(
     });
 
     return NextResponse.json(
-      paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit)
+      paginatedResponse(
+        items.map(withNormalizedImage),
+        total,
+        page,
+        fetchAll ? Math.max(total, 1) : limit
+      )
     );
   },
   { adminOnly: true }

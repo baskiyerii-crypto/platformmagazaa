@@ -19,7 +19,7 @@ import { SizeSummaryPanel } from "@/components/admin/size-summary-panel";
 import { StoreSearchSelect } from "@/components/admin/store-search-select";
 import { queryKeys } from "@/lib/query-keys";
 import type { SizeGroup } from "@/lib/size-groups";
-import { CHANGE_REQUEST_STATUS_LABELS, thumbUrl, requirePositiveNumber, requireIntMin, type PaginatedResponse, type ChangeRequestStatus } from "@magaza/shared";
+import { CHANGE_REQUEST_STATUS_LABELS, thumbUrl, fullMediaUrl, requirePositiveNumber, requireIntMin, type PaginatedResponse, type ChangeRequestStatus } from "@magaza/shared";
 
 const AvmManager = dynamic(
   () => import("@/components/store/avm-manager").then((m) => ({ default: m.AvmManager })),
@@ -332,7 +332,7 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   }
 
   function openImage(src: string, title: string) {
-    setLightbox({ src, title });
+    setLightbox({ src: fullMediaUrl(src) ?? src, title });
   }
 
   function refreshInventory() {

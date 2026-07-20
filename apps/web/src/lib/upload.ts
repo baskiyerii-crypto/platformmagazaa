@@ -1,4 +1,4 @@
-import { access, mkdir, readdir, writeFile, unlink } from "fs/promises";
+import { access, mkdir, readdir, writeFile, unlink, stat } from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import sharp from "sharp";
@@ -174,7 +174,7 @@ export function resolveUploadPath(filename: string, size?: "thumb" | "full") {
   return path.join(getUploadDir(), safeName);
 }
 
-/** Find file on disk across primary + legacy upload directories. */
+/** Find file on disk across primary + legacy upload directories. Skip empty files. */
 export async function findUploadFile(
   filename: string,
   size?: "thumb" | "full"
@@ -190,8 +190,8 @@ export async function findUploadFile(
     for (const name of names) {
       const full = path.join(dir, name);
       try {
-        await access(full);
-        return full;
+        const st = await stat(full);
+        if (st.size > 0) return full;
       } catch {
         /* try next */
       }

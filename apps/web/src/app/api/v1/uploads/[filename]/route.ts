@@ -8,9 +8,16 @@ export async function GET(
   { params }: { params: Promise<{ filename: string }> }
 ) {
   const { filename: raw } = await params;
-  const filename = path.basename(raw ?? "");
+  let decoded = raw ?? "";
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    /* keep raw */
+  }
+  const filename = path.basename(decoded);
 
-  if (!filename || filename !== raw || filename.includes("..")) {
+  // Allow basename match even if path segments were passed
+  if (!filename || filename.includes("..")) {
     return NextResponse.json({ error: "Geçersiz dosya" }, { status: 400 });
   }
 

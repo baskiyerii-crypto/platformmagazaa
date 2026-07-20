@@ -141,6 +141,11 @@ export function canStoreUploadImage(status: ChangeRequestStatus): boolean {
   return status === "TAMAMLANDI";
 }
 
+/** Mağaza kendi talebini iptal/silebilir (kapanmış talepler hariç). */
+export function canStoreDeleteChangeRequest(status: ChangeRequestStatus): boolean {
+  return !isChangeRequestClosed(status);
+}
+
 export const SUPPORT_TICKET_STATUSES = ["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"] as const;
 export type SupportTicketStatus = (typeof SUPPORT_TICKET_STATUSES)[number];
 

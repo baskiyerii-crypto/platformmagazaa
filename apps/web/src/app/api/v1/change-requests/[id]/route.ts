@@ -103,8 +103,15 @@ export const DELETE = withAuthParams<{ id: string }>(async (_request, auth, cont
   });
   if (!changeRequest) return jsonError("Talep bulunamadı", 404);
 
-  if (!isStaffRole(auth.role)) {
-    return jsonError("Sadece yönetici talepleri silebilir", 403);
+  if (auth.role === "STORE") {
+    if (changeRequest.storeId !== auth.storeId) {
+      return jsonError("Yetkisiz erişim", 403);
+    }
+    if (changeRequest.status === "MAGAZADA_GUNCELLENDI" || changeRequest.status === "REDDEDILDI") {
+      return jsonError("Kapanmış talepler silinemez", 400);
+    }
+  } else if (!isStaffRole(auth.role)) {
+    return jsonError("Yetkisiz erişim", 403);
   }
 
   const imageUrls = changeRequest.images.map((img) => img.url);
