@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, Download, FileSpreadsheet, FileText, LayoutGrid, List, Pencil, Trash2 } from "lucide-react";
+import { Plus, Download, FileSpreadsheet, FileText, LayoutGrid, List, Pencil, Trash2, Store, ImageIcon } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,9 +16,10 @@ import { ImageUploadPreview } from "@/components/image-upload-preview";
 import { PageHeader, SkeletonGrid } from "@/components/page-header";
 import { ClickableThumbnail, ImageLightbox } from "@/components/image-lightbox";
 import { SizeSummaryPanel } from "@/components/admin/size-summary-panel";
+import { StoreSearchSelect } from "@/components/admin/store-search-select";
 import { queryKeys } from "@/lib/query-keys";
 import type { SizeGroup } from "@/lib/size-groups";
-import { CHANGE_REQUEST_STATUS_LABELS, thumbUrl, type PaginatedResponse, type ChangeRequestStatus } from "@magaza/shared";
+import { CHANGE_REQUEST_STATUS_LABELS, thumbUrl, requirePositiveNumber, requireIntMin, type PaginatedResponse, type ChangeRequestStatus } from "@magaza/shared";
 
 const AvmManager = dynamic(
   () => import("@/components/store/avm-manager").then((m) => ({ default: m.AvmManager })),
@@ -274,6 +275,16 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
     staleTime: 120_000,
   });
 
+  const { data: inventoryStats } = useQuery({
+    queryKey: queryKeys.inventoryStats,
+    queryFn: () =>
+      fetch("/api/v1/admin/inventory/stats").then((r) => r.json()) as Promise<{
+        storesWithInventory: number;
+        totalImages: number;
+      }>,
+    staleTime: 60_000,
+  });
+
   useEffect(() => {
     if (stores[0] && !addStoreId) setAddStoreId(stores[0].id);
   }, [stores, addStoreId]);
@@ -357,43 +368,79 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
     if (!editItem || busy) return;
     const url = patchUrlFor(editItem);
     if (!url) return;
+
+    const en = requirePositiveNumber(editEn, "En");
+    if ("error" in en) {
+      alert(en.error);
+      return;
+    }
+    const boy = requirePositiveNumber(editBoy, "Boy");
+    if ("error" in boy) {
+      alert(boy.error);
+      return;
+    }
+    let adet: number | undefined;
+    if (editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") {
+      const a = requireIntMin(editAdet || "1", "Adet", 1);
+      if ("error" in a) {
+        alert(a.error);
+        return;
+      }
+      adet = a.value;
+    }
+    let camEn: number | null = null;
+    let camBoy: number | null = null;
+    if (editItem.type === "AVM_VITRIN" && editItem.kind !== "EKSTRA_ALAN") {
+      if (editCamEn.trim()) {
+        const c = requirePositiveNumber(editCamEn, "Cam en");
+        if ("error" in c) {
+          alert(c.error);
+          return;
+        }
+        camEn = c.value;
+      }
+      if (editCamBoy.trim()) {
+        const c = requirePositiveNumber(editCamBoy, "Cam boy");
+        if ("error" in c) {
+          alert(c.error);
+          return;
+        }
+        camBoy = c.value;
+      }
+    }
+
     setBusy(true);
     try {
       let res: Response;
 
       if (editFile) {
-        // Tek istek: ölçü + yeni görsel (ilk yüklenen görseli değiştirir)
         const fd = new FormData();
         fd.append("file", editFile);
-        fd.append("en", editEn);
-        fd.append("boy", editBoy);
-        if (editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") {
-          fd.append("adet", editAdet);
-        }
+        fd.append("en", String(en.value));
+        fd.append("boy", String(boy.value));
+        if (adet != null) fd.append("adet", String(adet));
         if (editItem.type === "AVM_VITRIN") {
           fd.append("kind", editItem.kind ?? "VITRIN");
           if (editItem.kind === "EKSTRA_ALAN") {
             fd.append("konum", editKonum.trim());
           } else {
-            fd.append("camEn", editCamEn);
-            fd.append("camBoy", editCamBoy);
+            fd.append("camEn", camEn != null ? String(camEn) : "");
+            fd.append("camBoy", camBoy != null ? String(camBoy) : "");
           }
         }
         res = await fetch(url, { method: "PATCH", body: fd });
       } else {
         const body: Record<string, unknown> = {
-          en: Number(editEn),
-          boy: Number(editBoy),
+          en: en.value,
+          boy: boy.value,
         };
 
-        if (editItem.type === "OUTDOOR" || editItem.type === "STORE_SIGNAGE") {
-          body.adet = Number(editAdet);
-        }
+        if (adet != null) body.adet = adet;
         if (editItem.type === "AVM_VITRIN") {
           body.vitrinId = editItem.id;
           body.kind = editItem.kind;
-          body.camEn = editCamEn ? Number(editCamEn) : null;
-          body.camBoy = editCamBoy ? Number(editCamBoy) : null;
+          body.camEn = editItem.kind === "EKSTRA_ALAN" ? null : camEn;
+          body.camBoy = editItem.kind === "EKSTRA_ALAN" ? null : camBoy;
           body.konum = editItem.kind === "EKSTRA_ALAN" ? editKonum.trim() : null;
         }
 
@@ -423,6 +470,27 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
     <div className="space-y-6">
       <PageHeader title="Envanter" subtitle="Kayıtları düzenleyin veya silin — her satırın sağında Düzenle / Sil" />
 
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Envanter giren mağaza</span>
+            <Store className="h-4 w-4 text-primary" />
+          </div>
+          <div className="mt-2 text-3xl font-semibold tabular-nums">
+            {inventoryStats?.storesWithInventory ?? "—"}
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Toplam görsel</span>
+            <ImageIcon className="h-4 w-4 text-primary" />
+          </div>
+          <div className="mt-2 text-3xl font-semibold tabular-nums">
+            {inventoryStats?.totalImages ?? "—"}
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">
         <strong>Yönetici:</strong> Her kaydın sağında <strong>Düzenle</strong> ve <strong>Sil</strong> butonları vardır.
         Görseller yüklenmiyorsa kaydı Düzenle ile yeniden fotoğraf ekleyin. (v9)
@@ -436,12 +504,13 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-1.5 sm:col-span-1">
             <Label className="text-xs text-muted-foreground">Mağaza</Label>
-            <select className="field-select" value={addStoreId} onChange={(e) => setAddStoreId(e.target.value)}>
-              <option value="">Seçin...</option>
-              {stores.map((s) => (
-                <option key={s.id} value={s.id}>{s.name}</option>
-              ))}
-            </select>
+            <StoreSearchSelect
+              stores={stores}
+              value={addStoreId}
+              onChange={setAddStoreId}
+              placeholder="Mağaza ara ve seç…"
+              allowAll={false}
+            />
           </div>
           <div className="flex flex-wrap items-end gap-2 sm:col-span-2">
             <Button
@@ -505,10 +574,13 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
         <div className="grid gap-3 sm:grid-cols-4">
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Mağaza</Label>
-            <select className="field-select" value={storeId} onChange={(e) => setStoreId(e.target.value)}>
-              <option value="">Tümü</option>
-              {stores.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-            </select>
+            <StoreSearchSelect
+              stores={stores}
+              value={storeId}
+              onChange={setStoreId}
+              placeholder="Mağaza adına göre ara…"
+              allowAll
+            />
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Tür</Label>

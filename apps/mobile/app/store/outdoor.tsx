@@ -8,6 +8,7 @@ import { colors, radius, spacing } from "@/components/theme";
 import { api, getToken } from "@/lib/auth";
 import { API_URL } from "@/lib/config";
 import { STORE_MENU } from "@/lib/menus";
+import { requirePositiveNumber, requireIntMin } from "@magaza/shared";
 
 type OutdoorEntry = {
   id: string;
@@ -18,6 +19,16 @@ type OutdoorEntry = {
   note?: string | null;
   gorselUrl?: string | null;
 };
+
+function validateDims(en: string, boy: string, adet: string) {
+  const e = requirePositiveNumber(en, "En");
+  if ("error" in e) return e.error;
+  const b = requirePositiveNumber(boy, "Boy");
+  if ("error" in b) return b.error;
+  const a = requireIntMin(adet || "1", "Adet", 1);
+  if ("error" in a) return a.error;
+  return { en: e.value, boy: b.value, adet: a.value };
+}
 
 export default function StoreOutdoor() {
   const [entries, setEntries] = useState<OutdoorEntry[]>([]);
@@ -57,6 +68,11 @@ export default function StoreOutdoor() {
 
   async function saveWithPhoto() {
     if (saving) return;
+    const dims = validateDims(en, boy, adet);
+    if (typeof dims === "string") {
+      Alert.alert("Hata", dims);
+      return;
+    }
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
       Alert.alert("İzin gerekli", "Kamera izni verilmeli");
@@ -70,9 +86,9 @@ export default function StoreOutdoor() {
     try {
       const formData = new FormData();
       formData.append("subTypeId", subTypeId);
-      formData.append("en", en);
-      formData.append("boy", boy);
-      formData.append("adet", adet);
+      formData.append("en", String(dims.en));
+      formData.append("boy", String(dims.boy));
+      formData.append("adet", String(dims.adet));
       formData.append("note", note);
       formData.append("file", {
         uri: result.assets[0].uri,
@@ -88,7 +104,8 @@ export default function StoreOutdoor() {
       });
 
       if (!res.ok) {
-        Alert.alert("Hata", "Kayıt başarısız");
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Hata", (err as { error?: string }).error ?? "Kayıt başarısız");
         return;
       }
 
@@ -113,12 +130,17 @@ export default function StoreOutdoor() {
 
   async function saveEdit() {
     if (!editEntry || saving) return;
+    const dims = validateDims(editEn, editBoy, editAdet);
+    if (typeof dims === "string") {
+      Alert.alert("Hata", dims);
+      return;
+    }
     setSaving(true);
     try {
       await api.patch(`/api/v1/store/outdoor-entries/${editEntry.id}`, {
-        en: Number(editEn),
-        boy: Number(editBoy),
-        adet: Number(editAdet),
+        en: dims.en,
+        boy: dims.boy,
+        adet: dims.adet,
         note: editNote || null,
       });
       setEditEntry(null);

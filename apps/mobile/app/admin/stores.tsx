@@ -35,6 +35,7 @@ export default function AdminStores() {
   const [editStoreNumber, setEditStoreNumber] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editActive, setEditActive] = useState(true);
+  const [storeSearch, setStoreSearch] = useState("");
 
   async function load() {
     try {
@@ -138,6 +139,15 @@ export default function AdminStores() {
 
   return (
     <Screen title="Mağazalar" subtitle="Mağaza ve kullanıcı yönetimi" menuItems={ADMIN_MENU}>
+      <Card>
+        <InputField
+          label="Mağaza ara"
+          value={storeSearch}
+          onChangeText={setStoreSearch}
+          placeholder="İsme veya numaraya göre ara"
+        />
+      </Card>
+
       {isAdmin && (
         <Card>
           <Text style={styles.cardTitle}>Yeni Mağaza + Kullanıcı</Text>
@@ -150,7 +160,16 @@ export default function AdminStores() {
         </Card>
       )}
 
-      {stores.map((store) => (
+      {stores
+        .filter((store) => {
+          const q = storeSearch.trim().toLocaleLowerCase("tr");
+          if (!q) return true;
+          return (
+            store.name.toLocaleLowerCase("tr").includes(q) ||
+            store.storeNumber.toLocaleLowerCase("tr").includes(q)
+          );
+        })
+        .map((store) => (
         <Card key={store.id}>
           {editingId === store.id ? (
             <>

@@ -11,7 +11,7 @@ import { colors, radius, spacing } from "@/components/theme";
 import { api, getToken } from "@/lib/auth";
 import { API_URL } from "@/lib/config";
 import { STORE_MENU } from "@/lib/menus";
-import { AVM_VITRIN_KIND_LABELS } from "@magaza/shared";
+import { AVM_VITRIN_KIND_LABELS, requirePositiveNumber } from "@magaza/shared";
 import type { AvmVitrinKind } from "@magaza/shared";
 
 type VitrinItem = {
@@ -89,13 +89,37 @@ export default function StoreAvm() {
 
   async function saveWithPhoto() {
     if (saving) return;
-    if (!en || !boy) {
-      Alert.alert("Eksik bilgi", "En ve boy zorunludur");
+    const enN = requirePositiveNumber(en, "En");
+    if ("error" in enN) {
+      Alert.alert("Hata", enN.error);
+      return;
+    }
+    const boyN = requirePositiveNumber(boy, "Boy");
+    if ("error" in boyN) {
+      Alert.alert("Hata", boyN.error);
       return;
     }
     if (kind === "EKSTRA_ALAN" && !konum.trim()) {
       Alert.alert("Eksik bilgi", "Ekstra alan için konum zorunludur");
       return;
+    }
+    let camEnN: number | null = null;
+    let camBoyN: number | null = null;
+    if (kind === "VITRIN" && camEn.trim()) {
+      const c = requirePositiveNumber(camEn, "Cam en");
+      if ("error" in c) {
+        Alert.alert("Hata", c.error);
+        return;
+      }
+      camEnN = c.value;
+    }
+    if (kind === "VITRIN" && camBoy.trim()) {
+      const c = requirePositiveNumber(camBoy, "Cam boy");
+      if ("error" in c) {
+        Alert.alert("Hata", c.error);
+        return;
+      }
+      camBoyN = c.value;
     }
 
     const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -117,10 +141,10 @@ export default function StoreAvm() {
           {
             kind,
             siraNo: 1,
-            en: Number(en),
-            boy: Number(boy),
-            camEn: kind === "VITRIN" && camEn ? Number(camEn) : null,
-            camBoy: kind === "VITRIN" && camBoy ? Number(camBoy) : null,
+            en: enN.value,
+            boy: boyN.value,
+            camEn: camEnN,
+            camBoy: camBoyN,
             konum: kind === "EKSTRA_ALAN" ? konum.trim() : null,
           },
         ])
@@ -168,14 +192,42 @@ export default function StoreAvm() {
 
   async function saveEdit() {
     if (!editItem || saving) return;
+    const enN = requirePositiveNumber(editEn, "En");
+    if ("error" in enN) {
+      Alert.alert("Hata", enN.error);
+      return;
+    }
+    const boyN = requirePositiveNumber(editBoy, "Boy");
+    if ("error" in boyN) {
+      Alert.alert("Hata", boyN.error);
+      return;
+    }
+    let camEnN: number | null = null;
+    let camBoyN: number | null = null;
+    if (editItem.kind === "VITRIN" && editCamEn.trim()) {
+      const c = requirePositiveNumber(editCamEn, "Cam en");
+      if ("error" in c) {
+        Alert.alert("Hata", c.error);
+        return;
+      }
+      camEnN = c.value;
+    }
+    if (editItem.kind === "VITRIN" && editCamBoy.trim()) {
+      const c = requirePositiveNumber(editCamBoy, "Cam boy");
+      if ("error" in c) {
+        Alert.alert("Hata", c.error);
+        return;
+      }
+      camBoyN = c.value;
+    }
     setSaving(true);
     try {
       await api.patch(`/api/v1/store/avm-vitrins/${editItem.id}`, {
         vitrinId: editItem.id,
-        en: Number(editEn),
-        boy: Number(editBoy),
-        camEn: editItem.kind === "VITRIN" && editCamEn ? Number(editCamEn) : null,
-        camBoy: editItem.kind === "VITRIN" && editCamBoy ? Number(editCamBoy) : null,
+        en: enN.value,
+        boy: boyN.value,
+        camEn: editItem.kind === "VITRIN" ? camEnN : null,
+        camBoy: editItem.kind === "VITRIN" ? camBoyN : null,
         konum: editItem.kind === "EKSTRA_ALAN" ? editKonum.trim() : null,
       });
       setEditItem(null);

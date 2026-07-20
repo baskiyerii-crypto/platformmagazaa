@@ -11,7 +11,7 @@ import { DialogContent, DialogRoot } from "@/components/ui/dialog";
 import { ImageUploadPreview } from "@/components/image-upload-preview";
 import { ChangeRequestDialog } from "@/components/change-request-dialog";
 import { PageHeader } from "@/components/page-header";
-import { thumbUrl } from "@magaza/shared";
+import { thumbUrl, parseNumber, requirePositiveNumber } from "@magaza/shared";
 import type { AvmVitrinKind } from "@magaza/shared";
 import { fetchDefinitions } from "@/lib/definitions-cache";
 
@@ -150,25 +150,61 @@ export function AvmManager({
       alert("Ekstra alan için konum zorunludur.");
       return;
     }
+    const parsedVitrins: Array<{
+      kind: typeof kind;
+      siraNo: number;
+      en: number;
+      boy: number;
+      camEn: number | null;
+      camBoy: number | null;
+      konum: string | null;
+    }> = [];
+    for (let i = 0; i < vitrinForms.length; i++) {
+      const v = vitrinForms[i];
+      const en = requirePositiveNumber(v.en, `Kayıt ${i + 1} En`);
+      if ("error" in en) {
+        alert(en.error);
+        return;
+      }
+      const boy = requirePositiveNumber(v.boy, `Kayıt ${i + 1} Boy`);
+      if ("error" in boy) {
+        alert(boy.error);
+        return;
+      }
+      let camEn: number | null = null;
+      let camBoy: number | null = null;
+      if (kind === "VITRIN" && v.camEn.trim()) {
+        const c = requirePositiveNumber(v.camEn, `Kayıt ${i + 1} Cam en`);
+        if ("error" in c) {
+          alert(c.error);
+          return;
+        }
+        camEn = c.value;
+      }
+      if (kind === "VITRIN" && v.camBoy.trim()) {
+        const c = requirePositiveNumber(v.camBoy, `Kayıt ${i + 1} Cam boy`);
+        if ("error" in c) {
+          alert(c.error);
+          return;
+        }
+        camBoy = c.value;
+      }
+      parsedVitrins.push({
+        kind,
+        siraNo: v.siraNo,
+        en: en.value,
+        boy: boy.value,
+        camEn,
+        camBoy,
+        konum: kind === "EKSTRA_ALAN" ? v.konum.trim() : null,
+      });
+    }
     setLoading(true);
     try {
       const formData = new FormData();
       if (storeId) formData.append("storeId", storeId);
       formData.append("subTypeId", subTypeId);
-      formData.append(
-        "vitrins",
-        JSON.stringify(
-          vitrinForms.map((v) => ({
-            kind,
-            siraNo: v.siraNo,
-            en: Number(v.en),
-            boy: Number(v.boy),
-            camEn: kind === "VITRIN" && v.camEn ? Number(v.camEn) : null,
-            camBoy: kind === "VITRIN" && v.camBoy ? Number(v.camBoy) : null,
-            konum: kind === "EKSTRA_ALAN" ? v.konum.trim() : null,
-          }))
-        )
-      );
+      formData.append("vitrins", JSON.stringify(parsedVitrins));
       formData.append("videos", "[]");
       vitrinForms.forEach((v, i) => {
         if (v.file) formData.append(`vitrinFile_${i}`, v.file);
@@ -194,23 +230,38 @@ export function AvmManager({
       alert("En az bir video kaydı ekleyin.");
       return;
     }
+    const parsedVideos: Array<{
+      placementId: string;
+      adet: number;
+      en: number | null;
+      boy: number | null;
+    }> = [];
+    for (let i = 0; i < videos.length; i++) {
+      const v = videos[i];
+      const adet = parseNumber(v.adet);
+      if (adet == null || !Number.isInteger(adet) || adet < 1) {
+        alert(`Video ${i + 1}: Adet en az 1 olmalı`);
+        return;
+      }
+      const en = v.en.trim() ? parseNumber(v.en) : null;
+      const boy = v.boy.trim() ? parseNumber(v.boy) : null;
+      if (v.en.trim() && (en == null || en <= 0)) {
+        alert(`Video ${i + 1}: En geçerli bir sayı olmalı`);
+        return;
+      }
+      if (v.boy.trim() && (boy == null || boy <= 0)) {
+        alert(`Video ${i + 1}: Boy geçerli bir sayı olmalı`);
+        return;
+      }
+      parsedVideos.push({ placementId: v.placementId, adet, en, boy });
+    }
     setLoading(true);
     try {
       const formData = new FormData();
       if (storeId) formData.append("storeId", storeId);
       formData.append("subTypeId", subTypeId);
       formData.append("vitrins", "[]");
-      formData.append(
-        "videos",
-        JSON.stringify(
-          videos.map((v) => ({
-            placementId: v.placementId,
-            adet: Number(v.adet),
-            en: v.en ? Number(v.en) : null,
-            boy: v.boy ? Number(v.boy) : null,
-          }))
-        )
-      );
+      formData.append("videos", JSON.stringify(parsedVideos));
       const res = await fetch("/api/v1/store/avm-entries", { method: "POST", body: formData });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -227,20 +278,50 @@ export function AvmManager({
 
   async function saveEdit() {
     if (!editVitrin || loading) return;
+    const en = requirePositiveNumber(editEn, "En");
+    if ("error" in en) {
+      alert(en.error);
+      return;
+    }
+    const boy = requirePositiveNumber(editBoy, "Boy");
+    if ("error" in boy) {
+      alert(boy.error);
+      return;
+    }
+    let camEn: number | null = null;
+    let camBoy: number | null = null;
+    if (editVitrin.kind !== "EKSTRA_ALAN" && editCamEn.trim()) {
+      const c = requirePositiveNumber(editCamEn, "Cam en");
+      if ("error" in c) {
+        alert(c.error);
+        return;
+      }
+      camEn = c.value;
+    }
+    if (editVitrin.kind !== "EKSTRA_ALAN" && editCamBoy.trim()) {
+      const c = requirePositiveNumber(editCamBoy, "Cam boy");
+      if ("error" in c) {
+        alert(c.error);
+        return;
+      }
+      camBoy = c.value;
+    }
     setLoading(true);
     try {
       let res: Response;
       if (editFile) {
         const fd = new FormData();
         fd.append("file", editFile);
-        fd.append("en", editEn);
-        fd.append("boy", editBoy);
+        fd.append("en", String(en.value));
+        fd.append("boy", String(boy.value));
         fd.append("kind", editVitrin.kind ?? "VITRIN");
         if (editVitrin.kind === "EKSTRA_ALAN") {
           fd.append("konum", editKonum.trim());
         } else {
-          fd.append("camEn", editCamEn);
-          fd.append("camBoy", editCamBoy);
+          if (camEn != null) fd.append("camEn", String(camEn));
+          else fd.append("camEn", "");
+          if (camBoy != null) fd.append("camBoy", String(camBoy));
+          else fd.append("camBoy", "");
         }
         res = await fetch(`/api/v1/store/avm-vitrins/${editVitrin.id}`, {
           method: "PATCH",
@@ -253,10 +334,10 @@ export function AvmManager({
           body: JSON.stringify({
             vitrinId: editVitrin.id,
             kind: editVitrin.kind,
-            en: Number(editEn),
-            boy: Number(editBoy),
-            camEn: editVitrin.kind === "VITRIN" && editCamEn ? Number(editCamEn) : null,
-            camBoy: editVitrin.kind === "VITRIN" && editCamBoy ? Number(editCamBoy) : null,
+            en: en.value,
+            boy: boy.value,
+            camEn: editVitrin.kind === "VITRIN" ? camEn : null,
+            camBoy: editVitrin.kind === "VITRIN" ? camBoy : null,
             konum: editVitrin.kind === "EKSTRA_ALAN" ? editKonum.trim() : null,
           }),
         });

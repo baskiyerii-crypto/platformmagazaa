@@ -5,3 +5,4 @@ export * from "./pagination";
 export * from "./images";
 export * from "./cache";
 export * from "./unwrap";
+export * from "./parse-number";

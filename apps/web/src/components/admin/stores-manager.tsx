@@ -69,6 +69,7 @@ export function StoresManager() {
   const [editStoreNumber, setEditStoreNumber] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [editActive, setEditActive] = useState(true);
+  const [storeSearch, setStoreSearch] = useState("");
 
   async function loadStores() {
     const res = await fetch("/api/v1/admin/stores");
@@ -299,6 +300,15 @@ export function StoresManager() {
     setLoading(false);
   }
 
+  const filteredStores = stores.filter((s) => {
+    const q = storeSearch.trim().toLocaleLowerCase("tr");
+    if (!q) return true;
+    return (
+      s.name.toLocaleLowerCase("tr").includes(q) ||
+      s.storeNumber.toLocaleLowerCase("tr").includes(q)
+    );
+  });
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -319,6 +329,20 @@ export function StoresManager() {
           ) : undefined
         }
       />
+
+      <section className="panel-section space-y-2">
+        <Label className="text-xs text-muted-foreground">Mağaza ara</Label>
+        <Input
+          value={storeSearch}
+          onChange={(e) => setStoreSearch(e.target.value)}
+          placeholder="İsme veya mağaza numarasına göre ara…"
+        />
+        {storeSearch.trim() && (
+          <p className="text-xs text-muted-foreground">
+            {filteredStores.length} mağaza gösteriliyor
+          </p>
+        )}
+      </section>
 
       {isAdmin && (
         <section className="panel-section space-y-4">
@@ -431,7 +455,7 @@ export function StoresManager() {
       {!isAdmin && error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       <div className="grid gap-4">
-        {stores.map((store) => (
+        {filteredStores.map((store) => (
           <Card key={store.id}>
             <CardContent className="flex flex-col gap-4 p-6">
               {editingId === store.id ? (

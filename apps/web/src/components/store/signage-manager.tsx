@@ -11,7 +11,7 @@ import { DialogContent, DialogRoot } from "@/components/ui/dialog";
 import { ImageUploadPreview } from "@/components/image-upload-preview";
 import { ChangeRequestDialog } from "@/components/change-request-dialog";
 import { PageHeader } from "@/components/page-header";
-import { thumbUrl } from "@magaza/shared";
+import { thumbUrl, requirePositiveNumber, requireIntMin } from "@magaza/shared";
 import { fetchDefinitions } from "@/lib/definitions-cache";
 import { cn } from "@/lib/utils";
 
@@ -34,6 +34,16 @@ type SignageEntry = {
   note?: string | null;
   gorselUrl?: string | null;
 };
+
+function validateDims(en: string, boy: string, adet: string) {
+  const e = requirePositiveNumber(en, "En");
+  if ("error" in e) return e.error;
+  const b = requirePositiveNumber(boy, "Boy");
+  if ("error" in b) return b.error;
+  const a = requireIntMin(adet || "1", "Adet", 1);
+  if ("error" in a) return a.error;
+  return { en: e.value, boy: b.value, adet: a.value };
+}
 
 export function SignageManager({ storeId, adminMode, formOnly, storeName, onSuccess }: Props = {}) {
   const [subTypes, setSubTypes] = useState<Array<{ id: string; name: string }>>([]);
@@ -96,6 +106,11 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
       alert("Konum seçin");
       return;
     }
+    const dims = validateDims(en, boy, adet);
+    if (typeof dims === "string") {
+      alert(dims);
+      return;
+    }
     setSubmitting(true);
     try {
       const formData = new FormData();
@@ -103,9 +118,9 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
       formData.append("subTypeId", subTypeId);
       formData.append("placementId", placementId);
       if (reyonCategoryId) formData.append("reyonCategoryId", reyonCategoryId);
-      formData.append("en", en);
-      formData.append("boy", boy);
-      formData.append("adet", adet);
+      formData.append("en", String(dims.en));
+      formData.append("boy", String(dims.boy));
+      formData.append("adet", String(dims.adet));
       formData.append("note", note);
       formData.append("file", file);
       const res = await fetch("/api/v1/store/signage-entries", { method: "POST", body: formData });
@@ -127,6 +142,11 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
 
   async function saveEdit() {
     if (!editEntry || submitting) return;
+    const dims = validateDims(editEn, editBoy, editAdet);
+    if (typeof dims === "string") {
+      alert(dims);
+      return;
+    }
     setSubmitting(true);
     try {
       let res: Response;
@@ -135,9 +155,9 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
         fd.append("file", editFile);
         fd.append("placementId", editPlacementId);
         if (editReyonCategoryId) fd.append("reyonCategoryId", editReyonCategoryId);
-        fd.append("en", editEn);
-        fd.append("boy", editBoy);
-        fd.append("adet", editAdet);
+        fd.append("en", String(dims.en));
+        fd.append("boy", String(dims.boy));
+        fd.append("adet", String(dims.adet));
         fd.append("note", editNote);
         res = await fetch(`/api/v1/store/signage-entries/${editEntry.id}`, {
           method: "PATCH",
@@ -150,9 +170,9 @@ export function SignageManager({ storeId, adminMode, formOnly, storeName, onSucc
           body: JSON.stringify({
             placementId: editPlacementId,
             reyonCategoryId: editReyonCategoryId || null,
-            en: Number(editEn),
-            boy: Number(editBoy),
-            adet: Number(editAdet),
+            en: dims.en,
+            boy: dims.boy,
+            adet: dims.adet,
             note: editNote || null,
           }),
         });

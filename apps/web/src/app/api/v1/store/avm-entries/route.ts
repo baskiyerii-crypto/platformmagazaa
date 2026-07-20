@@ -1,8 +1,71 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@magaza/database";
 import { withAuth, jsonError } from "@/lib/api-auth";
-import { createAvmEntrySchema, isStaffRole } from "@magaza/shared";
+import { createAvmEntrySchema, isStaffRole, parseNumber } from "@magaza/shared";
 import { saveUploadedFile } from "@/lib/upload";
+
+function sanitizeAvmNumbers(body: {
+  vitrins?: Array<Record<string, unknown>>;
+  videos?: Array<Record<string, unknown>>;
+  [key: string]: unknown;
+}): { ok: true; body: typeof body } | { ok: false; error: string } {
+  const vitrins = (body.vitrins ?? []).map((v, i) => {
+    const en = parseNumber(v.en);
+    const boy = parseNumber(v.boy);
+    if (en == null || en <= 0) return { error: `Vitrin ${i + 1}: En geçerli bir sayı olmalı` as const };
+    if (boy == null || boy <= 0) return { error: `Vitrin ${i + 1}: Boy geçerli bir sayı olmalı` as const };
+    const camEn = v.camEn != null && v.camEn !== "" ? parseNumber(v.camEn) : null;
+    const camBoy = v.camBoy != null && v.camBoy !== "" ? parseNumber(v.camBoy) : null;
+    if (v.camEn != null && v.camEn !== "" && (camEn == null || camEn <= 0)) {
+      return { error: `Vitrin ${i + 1}: Cam en geçerli bir sayı olmalı` as const };
+    }
+    if (v.camBoy != null && v.camBoy !== "" && (camBoy == null || camBoy <= 0)) {
+      return { error: `Vitrin ${i + 1}: Cam boy geçerli bir sayı olmalı` as const };
+    }
+    const siraNo = parseNumber(v.siraNo) ?? (i + 1);
+    return {
+      value: {
+        ...v,
+        siraNo,
+        en,
+        boy,
+        camEn,
+        camBoy,
+      },
+    };
+  });
+  for (const v of vitrins) {
+    if ("error" in v) return { ok: false, error: v.error };
+  }
+
+  const videos = (body.videos ?? []).map((v, i) => {
+    const adet = parseNumber(v.adet);
+    if (adet == null || !Number.isInteger(adet) || adet < 1) {
+      return { error: `Video ${i + 1}: Adet en az 1 olmalı` as const };
+    }
+    const en = v.en != null && v.en !== "" ? parseNumber(v.en) : null;
+    const boy = v.boy != null && v.boy !== "" ? parseNumber(v.boy) : null;
+    if (v.en != null && v.en !== "" && (en == null || en <= 0)) {
+      return { error: `Video ${i + 1}: En geçerli bir sayı olmalı` as const };
+    }
+    if (v.boy != null && v.boy !== "" && (boy == null || boy <= 0)) {
+      return { error: `Video ${i + 1}: Boy geçerli bir sayı olmalı` as const };
+    }
+    return { value: { ...v, adet, en, boy } };
+  });
+  for (const v of videos) {
+    if ("error" in v) return { ok: false, error: v.error };
+  }
+
+  return {
+    ok: true,
+    body: {
+      ...body,
+      vitrins: vitrins.map((v) => ("value" in v ? v.value : v)),
+      videos: videos.map((v) => ("value" in v ? v.value : v)),
+    },
+  };
+}
 
 export const GET = withAuth(async (request, auth) => {
   const storeIdParam = new URL(request.url).searchParams.get("storeId");
@@ -103,7 +166,13 @@ export const POST = withAuth(async (request, auth) => {
     );
   }
 
-  const parsed = createAvmEntrySchema.safeParse(body);
+  const sanitized = sanitizeAvmNumbers(body as {
+    vitrins?: Array<Record<string, unknown>>;
+    videos?: Array<Record<string, unknown>>;
+  });
+  if (!sanitized.ok) return jsonError(sanitized.error, 400);
+
+  const parsed = createAvmEntrySchema.safeParse(sanitized.body);
   if (!parsed.success) {
     return jsonError(parsed.error.errors[0]?.message ?? "Geçersiz veri", 400);
   }

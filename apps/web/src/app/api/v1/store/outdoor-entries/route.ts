@@ -1,7 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@magaza/database";
 import { withAuth, jsonError } from "@/lib/api-auth";
-import { outdoorEntrySchema, isStaffRole } from "@magaza/shared";
+import {
+  outdoorEntrySchema,
+  isStaffRole,
+  requirePositiveNumber,
+  requireIntMin,
+} from "@magaza/shared";
 import { saveUploadedFile } from "@/lib/upload";
 
 export const GET = withAuth(async (request, auth) => {
@@ -34,6 +39,20 @@ export const GET = withAuth(async (request, auth) => {
   return NextResponse.json(entries);
 });
 
+function parseOutdoorNumbers(raw: {
+  en: unknown;
+  boy: unknown;
+  adet: unknown;
+}): { en: number; boy: number; adet: number } | { error: string } {
+  const en = requirePositiveNumber(raw.en, "En");
+  if ("error" in en) return en;
+  const boy = requirePositiveNumber(raw.boy, "Boy");
+  if ("error" in boy) return boy;
+  const adet = requireIntMin(raw.adet ?? 1, "Adet", 1);
+  if ("error" in adet) return adet;
+  return { en: en.value, boy: boy.value, adet: adet.value };
+}
+
 export const POST = withAuth(async (request, auth) => {
   const contentType = request.headers.get("content-type") ?? "";
   let data: Record<string, unknown>;
@@ -43,11 +62,17 @@ export const POST = withAuth(async (request, auth) => {
   if (contentType.includes("multipart/form-data")) {
     const formData = await request.formData();
     storeIdParam = formData.get("storeId")?.toString() ?? null;
+    const nums = parseOutdoorNumbers({
+      en: formData.get("en"),
+      boy: formData.get("boy"),
+      adet: formData.get("adet") ?? 1,
+    });
+    if ("error" in nums) return jsonError(nums.error, 400);
     data = {
       subTypeId: formData.get("subTypeId"),
-      en: Number(formData.get("en")),
-      boy: Number(formData.get("boy")),
-      adet: Number(formData.get("adet") ?? 1),
+      en: nums.en,
+      boy: nums.boy,
+      adet: nums.adet,
       note: formData.get("note") || null,
     };
     const file = formData.get("file") as File | null;
@@ -61,6 +86,13 @@ export const POST = withAuth(async (request, auth) => {
   } else {
     data = await request.json();
     storeIdParam = (data.storeId as string) ?? null;
+    const nums = parseOutdoorNumbers({
+      en: data.en,
+      boy: data.boy,
+      adet: data.adet ?? 1,
+    });
+    if ("error" in nums) return jsonError(nums.error, 400);
+    data = { ...data, ...nums };
   }
 
   const storeId =
