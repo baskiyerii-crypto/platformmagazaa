@@ -2,18 +2,21 @@ import { prisma } from "@magaza/database";
 import { paginatedResponse } from "@magaza/shared";
 import { fetchInventoryPageFromExport } from "@/lib/server/inventory-export-data";
 
-const DEFAULT_LIMIT = 24;
-
 export async function getInventoryPage(options?: {
   page?: number;
-  limit?: number;
+  limit?: number | "all";
   storeId?: string;
   type?: string;
 }) {
-  const page = options?.page ?? 1;
-  const limit = options?.limit ?? DEFAULT_LIMIT;
-  const skip = (page - 1) * limit;
-  const take = limit;
+  const fetchAll = options?.limit === "all";
+  const page = fetchAll ? 1 : (options?.page ?? 1);
+  const limit = fetchAll
+    ? Number.MAX_SAFE_INTEGER
+    : typeof options?.limit === "number"
+      ? options.limit
+      : 100;
+  const skip = fetchAll ? 0 : (page - 1) * limit;
+  const take = fetchAll ? undefined : limit;
   const storeFilter = options?.storeId || undefined;
   const type = options?.type || undefined;
 
@@ -35,7 +38,7 @@ export async function getInventoryPage(options?: {
         },
         orderBy: { createdAt: "desc" },
         skip,
-        take,
+        ...(take != null ? { take } : {}),
       }),
       prisma.avmVitrin.count({ where: vitrinWhere }),
     ]);
@@ -49,7 +52,7 @@ export async function getInventoryPage(options?: {
       gorselUrl: v.gorselUrl,
       createdAt: v.createdAt,
     }));
-    return paginatedResponse(items, total, page, limit);
+    return paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit);
   }
 
   if (type === "OUTDOOR") {
@@ -62,7 +65,7 @@ export async function getInventoryPage(options?: {
         },
         orderBy: { createdAt: "desc" },
         skip,
-        take,
+        ...(take != null ? { take } : {}),
       }),
       prisma.outdoorEntry.count({ where: outdoorWhere }),
     ]);
@@ -76,7 +79,7 @@ export async function getInventoryPage(options?: {
       gorselUrl: o.gorselUrl,
       createdAt: o.createdAt,
     }));
-    return paginatedResponse(items, total, page, limit);
+    return paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit);
   }
 
   if (type === "STORE_SIGNAGE") {
@@ -91,7 +94,7 @@ export async function getInventoryPage(options?: {
         },
         orderBy: { createdAt: "desc" },
         skip,
-        take,
+        ...(take != null ? { take } : {}),
       }),
       prisma.storeSignageEntry.count({ where: signageWhere }),
     ]);
@@ -114,17 +117,17 @@ export async function getInventoryPage(options?: {
       gorselUrl: s.gorselUrl,
       createdAt: s.createdAt,
     }));
-    return paginatedResponse(items, total, page, limit);
+    return paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit);
   }
 
   const { items, total } = await fetchInventoryPageFromExport({
     storeId: storeFilter,
     type,
-    skip,
-    take,
+    skip: fetchAll ? 0 : skip,
+    take: fetchAll ? Number.MAX_SAFE_INTEGER : (take ?? 100),
   });
 
-  return paginatedResponse(items, total, page, limit);
+  return paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit);
 }
 
 export async function getSlimStores() {

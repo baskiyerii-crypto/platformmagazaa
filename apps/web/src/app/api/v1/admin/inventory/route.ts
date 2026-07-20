@@ -4,6 +4,7 @@ import { withAuth } from "@/lib/api-auth";
 import { parsePagination, paginatedResponse } from "@magaza/shared";
 import { fetchInventoryPageFromExport } from "@/lib/server/inventory-export-data";
 import { buildInventoryWheres } from "@/lib/server/inventory-filters";
+
 function buildStoreFilter(storeId: string | null, authStoreId?: string | null) {
   return storeId ?? authStoreId ?? undefined;
 }
@@ -11,8 +12,17 @@ function buildStoreFilter(storeId: string | null, authStoreId?: string | null) {
 export const GET = withAuth(
   async (request, auth) => {
     const { searchParams } = new URL(request.url);
-    const { page, limit, skip, take } = parsePagination(searchParams, 24);
-    const storeFilter = buildStoreFilter(searchParams.get("storeId"), auth.role === "STORE" ? auth.storeId : null);
+    const fetchAll = searchParams.get("limit") === "all";
+    const parsed = parsePagination(searchParams, 100);
+    const page = fetchAll ? 1 : parsed.page;
+    const skip = fetchAll ? 0 : parsed.skip;
+    const take = fetchAll ? undefined : parsed.take;
+    const limit = fetchAll ? Number.MAX_SAFE_INTEGER : parsed.limit;
+
+    const storeFilter = buildStoreFilter(
+      searchParams.get("storeId"),
+      auth.role === "STORE" ? auth.storeId : null
+    );
     const type = searchParams.get("type");
     const search = searchParams.get("search")?.trim();
 
@@ -20,6 +30,7 @@ export const GET = withAuth(
       storeId: storeFilter,
       search,
     });
+
     if (type === "AVM_VITRIN") {
       const [vitrins, total] = await Promise.all([
         prisma.avmVitrin.findMany({
@@ -34,7 +45,7 @@ export const GET = withAuth(
           },
           orderBy: { createdAt: "desc" },
           skip,
-          take,
+          ...(take != null ? { take } : {}),
         }),
         prisma.avmVitrin.count({ where: vitrinWhere }),
       ]);
@@ -53,7 +64,7 @@ export const GET = withAuth(
         gorselUrl: v.gorselUrl,
         createdAt: v.createdAt,
       }));
-      return NextResponse.json(paginatedResponse(items, total, page, limit));
+      return NextResponse.json(paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit));
     }
 
     if (type === "OUTDOOR") {
@@ -66,7 +77,7 @@ export const GET = withAuth(
           },
           orderBy: { createdAt: "desc" },
           skip,
-          take,
+          ...(take != null ? { take } : {}),
         }),
         prisma.outdoorEntry.count({ where: outdoorWhere }),
       ]);
@@ -81,7 +92,7 @@ export const GET = withAuth(
         gorselUrl: o.gorselUrl,
         createdAt: o.createdAt,
       }));
-      return NextResponse.json(paginatedResponse(items, total, page, limit));
+      return NextResponse.json(paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit));
     }
 
     if (type === "STORE_SIGNAGE") {
@@ -96,7 +107,7 @@ export const GET = withAuth(
           },
           orderBy: { createdAt: "desc" },
           skip,
-          take,
+          ...(take != null ? { take } : {}),
         }),
         prisma.storeSignageEntry.count({ where: signageWhere }),
       ]);
@@ -120,17 +131,19 @@ export const GET = withAuth(
         gorselUrl: s.gorselUrl,
         createdAt: s.createdAt,
       }));
-      return NextResponse.json(paginatedResponse(items, total, page, limit));
+      return NextResponse.json(paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit));
     }
 
     const { items, total } = await fetchInventoryPageFromExport({
       storeId: storeFilter,
       search,
-      skip,
-      take,
+      skip: fetchAll ? 0 : skip,
+      take: fetchAll ? Number.MAX_SAFE_INTEGER : (take ?? 100),
     });
 
-    return NextResponse.json(paginatedResponse(items, total, page, limit));
+    return NextResponse.json(
+      paginatedResponse(items, total, page, fetchAll ? Math.max(total, 1) : limit)
+    );
   },
   { adminOnly: true }
 );

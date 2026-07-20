@@ -9,7 +9,7 @@ export default async function AdminInventoryPage() {
   if (!auth || !isStaffRole(auth.role)) redirect("/login");
 
   const [initialInventory, initialStores] = await Promise.all([
-    getInventoryPage({ page: 1, limit: 24 }),
+    getInventoryPage({ limit: "all" }),
     getSlimStores(),
   ]);
 

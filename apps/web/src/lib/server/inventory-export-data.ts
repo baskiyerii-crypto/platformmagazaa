@@ -28,10 +28,12 @@ export type InventoryExportRow = {
 };
 
 export async function fetchInventoryForExport(
-  options: InventoryFilterOptions
+  options: InventoryFilterOptions & { /** null = no final merge cap (admin list) */ cap?: number | null }
 ): Promise<InventoryExportRow[]> {
   const type = options.type || undefined;
   const { vitrinWhere, outdoorWhere, signageWhere } = buildInventoryWheres(options);
+  const perTypeTake =
+    options.cap === null ? undefined : (options.cap ?? INVENTORY_EXPORT_MAX);
 
   const rows: InventoryExportRow[] = [];
 
@@ -47,7 +49,7 @@ export async function fetchInventoryForExport(
         },
       },
       orderBy: { createdAt: "desc" },
-      take: INVENTORY_EXPORT_MAX,
+      ...(perTypeTake != null ? { take: perTypeTake } : {}),
     });
     for (const v of vitrins) {
       const kindLabel = v.kind === "EKSTRA_ALAN" ? "Ekstra Alan" : "Vitrin";
@@ -82,7 +84,7 @@ export async function fetchInventoryForExport(
         subType: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: INVENTORY_EXPORT_MAX,
+      ...(perTypeTake != null ? { take: perTypeTake } : {}),
     });
     for (const o of outdoor) {
       rows.push({
@@ -115,7 +117,7 @@ export async function fetchInventoryForExport(
         reyonCategory: { select: { name: true } },
       },
       orderBy: { createdAt: "desc" },
-      take: INVENTORY_EXPORT_MAX,
+      ...(perTypeTake != null ? { take: perTypeTake } : {}),
     });
     for (const s of signage) {
       rows.push({
@@ -138,9 +140,10 @@ export async function fetchInventoryForExport(
     }
   }
 
-  return rows
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .slice(0, INVENTORY_EXPORT_MAX);
+  const sorted = rows.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  if (options.cap === null) return sorted;
+  const cap = options.cap ?? INVENTORY_EXPORT_MAX;
+  return sorted.slice(0, cap);
 }
 
 export function formatExportFilterSummary(options: InventoryFilterOptions): string {
@@ -184,13 +187,14 @@ export function exportRowToApiItem(row: InventoryExportRow) {
 export async function fetchInventoryPageFromExport(
   options: InventoryFilterOptions & { skip: number; take: number }
 ) {
-  const all = await fetchInventoryForExport(options);
+  // Admin list: no artificial 5000 merge cap (that hid older stores' inventory).
+  const all = await fetchInventoryForExport({ ...options, cap: null });
   const total = all.length;
   const slice = all.slice(options.skip, options.skip + options.take);
   return {
     items: slice.map(exportRowToApiItem),
     total,
-    truncated: all.length >= INVENTORY_EXPORT_MAX,
+    truncated: false,
     exportMax: INVENTORY_EXPORT_MAX,
   };
 }

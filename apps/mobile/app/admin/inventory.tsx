@@ -62,14 +62,14 @@ export default function AdminInventory() {
     if (append) setLoadingMore(true);
     else setLoading(true);
     try {
-      const params = new URLSearchParams({ page: String(p), limit: "20" });
+      const params = new URLSearchParams({ page: "1", limit: "all" });
       if (storeId) params.set("storeId", storeId);
       if (type) params.set("type", type);
       if (search) params.set("search", search);
       const data = await api.getPaginated<InventoryItem>(`/api/v1/admin/inventory?${params}`);
-      setItems((prev) => (append ? [...prev, ...data.items] : data.items));
-      setHasMore(data.hasMore);
-      setPage(data.page);
+      setItems(data.items);
+      setHasMore(false);
+      setPage(1);
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -182,7 +182,7 @@ export default function AdminInventory() {
       ListHeaderComponent={filters}
       loading={loading}
       loadingMore={loadingMore}
-      onEndReached={hasMore && !loadingMore ? () => load(page + 1, true) : undefined}
+      onEndReached={undefined}
     />
   );
 }

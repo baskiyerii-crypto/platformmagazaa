@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { Plus, Download, FileSpreadsheet, FileText, LayoutGrid, List, Pencil, Trash2, Store, ImageIcon } from "lucide-react";
+import { Plus, Download, FileSpreadsheet, FileText, LayoutGrid, List, Pencil, Trash2, Store, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -100,9 +100,8 @@ async function fetchInventory(filters: {
   storeId: string;
   type: string;
   search: string;
-  page: number;
 }) {
-  const params = new URLSearchParams({ page: String(filters.page), limit: "24" });
+  const params = new URLSearchParams({ page: "1", limit: "all" });
   if (filters.storeId) params.set("storeId", filters.storeId);
   if (filters.type) params.set("type", filters.type);
   if (filters.search) params.set("search", filters.search);
@@ -209,9 +208,6 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   const [addStoreId, setAddStoreId] = useState(initialStores?.[0]?.id ?? "");
   const [type, setType] = useState(defaultType);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(1);
-  const [extraItems, setExtraItems] = useState<InventoryItem[]>([]);
-  const [hasMore, setHasMore] = useState(initialInventory?.hasMore ?? false);
   const [addMode, setAddMode] = useState<"" | "avm" | "outdoor" | "signage">("");
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [lightbox, setLightbox] = useState<{ src: string; title: string } | null>(null);
@@ -226,6 +222,8 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
   const [busy, setBusy] = useState(false);
   const [sizeGroups, setSizeGroups] = useState<SizeGroup[]>([]);
   const [sizeLoading, setSizeLoading] = useState(false);
+  const [openStoreIds, setOpenStoreIds] = useState<Set<string>>(new Set());
+  const [storesExpandedInit, setStoresExpandedInit] = useState(false);
 
   function buildExportUrl(format: "excel" | "pdf") {
     const params = new URLSearchParams({ format });
@@ -289,40 +287,56 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
     if (stores[0] && !addStoreId) setAddStoreId(stores[0].id);
   }, [stores, addStoreId]);
 
-  const filters = { storeId, type, search, page: 1 };
+  const filters = { storeId, type, search };
   const { data, isLoading, isFetching } = useQuery({
     queryKey: queryKeys.inventory(filters),
     queryFn: () => fetchInventory(filters),
-    initialData: page === 1 && !storeId && type === defaultType && !search ? initialInventory : undefined,
+    initialData:
+      !storeId && type === defaultType && !search ? initialInventory : undefined,
     staleTime: 30_000,
   });
 
-  useEffect(() => {
-    setPage(1);
-    setExtraItems([]);
-    if (data) setHasMore(data.hasMore);
-  }, [storeId, type, search, data?.hasMore]);
-
-  const items = [...(data?.items ?? []), ...extraItems];
+  const items = data?.items ?? [];
   const loading = (isLoading || isFetching) && items.length === 0;
   const storeGroups = useMemo(() => groupItemsByStore(items), [items]);
+
+  useEffect(() => {
+    setStoresExpandedInit(false);
+    setOpenStoreIds(new Set());
+  }, [storeId, type, search]);
+
+  useEffect(() => {
+    if (storesExpandedInit || storeGroups.length === 0) return;
+    // Tek mağaza filtresinde açık başlat; çoklu listede kapalı (accordion)
+    if (storeGroups.length === 1) {
+      setOpenStoreIds(new Set([storeGroups[0].store.id]));
+    }
+    setStoresExpandedInit(true);
+  }, [storeGroups, storesExpandedInit]);
+
+  function toggleStore(id: string) {
+    setOpenStoreIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function expandAllStores() {
+    setOpenStoreIds(new Set(storeGroups.map((g) => g.store.id)));
+  }
+
+  function collapseAllStores() {
+    setOpenStoreIds(new Set());
+  }
 
   function openImage(src: string, title: string) {
     setLightbox({ src, title });
   }
 
   function refreshInventory() {
-    setExtraItems([]);
-    setPage(1);
     queryClient.invalidateQueries({ queryKey: ["inventory"] });
-  }
-
-  async function loadMore() {
-    const nextPage = page + 1;
-    const more = await fetchInventory({ storeId, type, search, page: nextPage });
-    setExtraItems((prev) => [...prev, ...more.items]);
-    setPage(nextPage);
-    setHasMore(more.hasMore);
   }
 
   function img(item: InventoryItem) {
@@ -620,6 +634,7 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
         title="Ölçü Özeti (aktif filtreler)"
         groups={sizeGroups}
         loading={sizeLoading}
+        defaultOpen={false}
       />
 
       {loading ? (
@@ -629,34 +644,60 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
           Kayıt bulunamadı
         </div>
       ) : viewMode === "list" ? (
-        <div className="space-y-6">
-          {storeGroups.map(({ store, items: storeItems }) => (
-            <section key={store.id} className="card-surface overflow-hidden rounded-xl border">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Link href={`/admin/stores/${store.id}`} className="font-semibold text-primary hover:underline">
-                    {store.name}
-                  </Link>
-                  <Badge variant="secondary">{storeItems.length} kayıt</Badge>
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-muted-foreground">
+              {storeGroups.length} mağaza · {items.length} kayıt
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={expandAllStores}>
+                Tümünü aç
+              </Button>
+              <Button size="sm" variant="outline" onClick={collapseAllStores}>
+                Tümünü kapat
+              </Button>
+            </div>
+          </div>
+          {storeGroups.map(({ store, items: storeItems }) => {
+            const isOpen = openStoreIds.has(store.id);
+            return (
+              <section key={store.id} className="card-surface overflow-hidden rounded-xl border">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3">
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                    onClick={() => toggleStore(store.id)}
+                    aria-expanded={isOpen}
+                  >
+                    {isOpen ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                    <span className="font-semibold text-primary">{store.name}</span>
+                    <Badge variant="secondary">{storeItems.length} kayıt</Badge>
+                  </button>
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/admin/stores/${store.id}`}>Mağaza detayı</Link>
+                  </Button>
                 </div>
-                <Button size="sm" variant="outline" asChild>
-                  <Link href={`/admin/stores/${store.id}`}>Mağaza detayı</Link>
-                </Button>
-              </div>
-              <ul>
-                {storeItems.map((item) => (
-                  <InventoryListRow
-                    key={`${item.type}-${item.id}`}
-                    item={item}
-                    onImageClick={openImage}
-                    onEdit={openEdit}
-                    onDelete={deleteItem}
-                    busy={busy}
-                  />
-                ))}
-              </ul>
-            </section>
-          ))}
+                {isOpen && (
+                  <ul>
+                    {storeItems.map((item) => (
+                      <InventoryListRow
+                        key={`${item.type}-${item.id}`}
+                        item={item}
+                        onImageClick={openImage}
+                        onEdit={openEdit}
+                        onDelete={deleteItem}
+                        busy={busy}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </section>
+            );
+          })}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -769,14 +810,6 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
           src={lightbox.src}
           title={lightbox.title}
         />
-      )}
-
-      {hasMore && (
-        <div className="flex justify-center">
-          <Button variant="outline" onClick={loadMore} disabled={isFetching}>
-            {isFetching ? "Yükleniyor..." : "Daha fazla"}
-          </Button>
-        </div>
       )}
     </div>
   );
