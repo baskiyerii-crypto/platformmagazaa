@@ -33,8 +33,14 @@ if [ ! -f /app/apps/web/server.js ]; then
 fi
 
 UPLOAD_DIR="${UPLOAD_DIR:-/app/uploads}"
+# Coolify sometimes injects empty UPLOAD_DIR= which breaks path resolution
+if [ -z "$UPLOAD_DIR" ] || [ "$UPLOAD_DIR" = "" ]; then
+  UPLOAD_DIR="/app/uploads"
+fi
+export UPLOAD_DIR
 mkdir -p "$UPLOAD_DIR"
-echo "[entrypoint] upload dir: $UPLOAD_DIR"
+echo "[entrypoint] upload dir: $UPLOAD_DIR (cwd=$(pwd))"
+ls -la "$UPLOAD_DIR" 2>/dev/null | head -5 || echo "[entrypoint] upload dir empty or inaccessible"
 
 echo "[entrypoint] starting Next.js on port ${PORT:-3000}..."
 exec node apps/web/server.js

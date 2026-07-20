@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
 import { Plus, Download, FileSpreadsheet, FileText, LayoutGrid, List, Pencil, Trash2, Store, ImageIcon, ChevronDown, ChevronRight } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -147,7 +146,7 @@ function InventoryListRow({
         <div className="shrink-0">
           {imageUrl ? (
             <ClickableThumbnail
-              src={thumbUrl(imageUrl) ?? imageUrl}
+              src={imageUrl}
               alt={item.label}
               onClick={() => onImageClick(imageUrl, item.label)}
             />
@@ -710,10 +709,23 @@ export function InventoryManager({ initialInventory, initialStores, defaultType 
               {imageUrl && (
                 <button
                   type="button"
-                  className="relative block aspect-[4/3] w-full bg-muted"
+                  className="relative block aspect-[4/3] w-full overflow-hidden bg-muted"
                   onClick={() => openImage(imageUrl, item.label)}
                 >
-                  <Image src={thumbUrl(imageUrl) ?? imageUrl} alt="" fill className="object-cover" sizes="(max-width:768px) 100vw, 33vw" unoptimized />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={thumbUrl(imageUrl) ?? imageUrl}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    onError={(e) => {
+                      const el = e.currentTarget;
+                      const full = fullMediaUrl(imageUrl);
+                      if (full && el.src !== full && !el.src.endsWith(full)) {
+                        el.src = full;
+                      }
+                    }}
+                  />
                 </button>
               )}
               <CardContent className="space-y-2 p-4">

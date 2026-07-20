@@ -4,6 +4,26 @@ import { useEffect, useState } from "react";
 import { DialogContent, DialogRoot } from "@/components/ui/dialog";
 import { fullMediaUrl, normalizeMediaUrl, thumbUrl } from "@magaza/shared";
 
+async function loadImageBlobUrl(candidates: string[]): Promise<string | null> {
+  for (const url of candidates) {
+    if (!url) continue;
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (!res.ok) continue;
+      const ct = (res.headers.get("content-type") || "").toLowerCase();
+      if (ct && !ct.startsWith("image/") && !ct.includes("octet-stream")) continue;
+      const blob = await res.blob();
+      if (!blob.size) continue;
+      // Reject JSON error bodies mislabeled as images
+      if (blob.type.includes("json") || ct.includes("json")) continue;
+      return URL.createObjectURL(blob);
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+}
+
 export function ImageLightbox({
   open,
   onOpenChange,
@@ -15,17 +35,78 @@ export function ImageLightbox({
   src: string;
   title?: string;
 }) {
-  const resolved = fullMediaUrl(src) ?? normalizeMediaUrl(src) ?? src;
+  const full = fullMediaUrl(src) ?? normalizeMediaUrl(src) ?? src;
+  const thumb = thumbUrl(full);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+      setFailed(false);
+      setLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+    setFailed(false);
+    setBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+
+    void (async () => {
+      const candidates = [full, thumb].filter(
+        (u, i, arr): u is string => Boolean(u) && arr.indexOf(u) === i
+      );
+      const next = await loadImageBlobUrl(candidates);
+      if (cancelled) {
+        if (next) URL.revokeObjectURL(next);
+        return;
+      }
+      setLoading(false);
+      if (next) setBlobUrl(next);
+      else setFailed(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, src, full, thumb]);
+
   return (
     <DialogRoot open={open} onOpenChange={onOpenChange}>
-      <DialogContent title={title} className="max-w-5xl">
-        <div className="relative mx-auto flex aspect-[4/3] w-full max-h-[75vh] items-center justify-center bg-muted/30">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={resolved}
-            alt={title}
-            className="max-h-[75vh] max-w-full object-contain"
-          />
+      <DialogContent title={title} className="w-[min(96vw,72rem)] max-w-5xl">
+        <div className="relative mx-auto flex min-h-[240px] w-full max-h-[75vh] items-center justify-center bg-muted/30">
+          {loading && (
+            <p className="text-sm text-muted-foreground">Görsel yükleniyor…</p>
+          )}
+          {!loading && blobUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={blobUrl}
+              alt={title}
+              className="max-h-[75vh] max-w-full object-contain"
+            />
+          )}
+          {!loading && failed && (
+            <div className="space-y-2 p-6 text-center text-sm text-muted-foreground">
+              <p>Görsel yüklenemedi</p>
+              <a
+                href={full}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline"
+              >
+                Dosya URL&apos;sini yeni sekmede aç
+              </a>
+            </div>
+          )}
         </div>
       </DialogContent>
     </DialogRoot>
@@ -41,24 +122,28 @@ export function ClickableThumbnail({
   alt: string;
   onClick: () => void;
 }) {
-  const thumb = thumbUrl(src);
   const full = fullMediaUrl(src);
-  const [current, setCurrent] = useState(thumb ?? full ?? src);
-  const [failed, setFailed] = useState(false);
+  const thumb = thumbUrl(full ?? src);
+  const [phase, setPhase] = useState<"thumb" | "full" | "dead">("thumb");
 
   useEffect(() => {
-    setCurrent(thumb ?? full ?? src);
-    setFailed(false);
-  }, [src, thumb, full]);
+    setPhase("thumb");
+  }, [src]);
 
-  if (failed || !current) {
+  const current =
+    phase === "thumb" ? (thumb ?? full) : phase === "full" ? full : null;
+
+  if (!current || phase === "dead") {
     return (
-      <div
-        className="flex h-24 w-24 shrink-0 items-center justify-center rounded-xl border bg-muted px-1 text-center text-[10px] leading-tight text-muted-foreground"
-        title={full ?? src}
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex h-24 w-24 shrink-0 flex-col items-center justify-center rounded-xl border bg-muted px-1 text-center text-[10px] leading-tight text-muted-foreground hover:bg-muted/80"
+        title={alt}
       >
-        Görsel yok
-      </div>
+        Görsel
+        <span className="text-primary underline">Büyüt</span>
+      </button>
     );
   }
 
@@ -69,20 +154,19 @@ export function ClickableThumbnail({
       className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl border bg-secondary transition hover:ring-2 hover:ring-primary"
       title={alt}
     >
-      {/* native img: avoids next/image quirks with /api upload routes */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        key={current}
+        key={`${phase}-${current}`}
         src={current}
         alt={alt}
         className="h-full w-full object-cover"
+        loading="lazy"
         onError={() => {
-          // Thumb failed → try full file once
-          if (full && current !== full) {
-            setCurrent(full);
+          if (phase === "thumb" && full && current !== full) {
+            setPhase("full");
             return;
           }
-          setFailed(true);
+          setPhase("dead");
         }}
       />
     </button>

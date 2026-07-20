@@ -2,6 +2,10 @@ import { useEffect, useState } from "react";
 import { View, Text, Image, Pressable, StyleSheet } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { colors, radius, spacing } from "./theme";
+import {
+  IMAGE_PICKER_CAMERA_OPTS,
+  IMAGE_PICKER_GALLERY_OPTS,
+} from "../lib/image-picker-opts";
 
 type Props = {
   label?: string;
@@ -19,14 +23,14 @@ export function ImageUploadPreview({ label = "Görsel", existingUri, onPick }: P
   async function pickFromCamera() {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) return;
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true });
+    const result = await ImagePicker.launchCameraAsync(IMAGE_PICKER_CAMERA_OPTS);
     if (result.canceled || !result.assets[0]) return;
     setPreview(result.assets[0].uri);
     onPick({ uri: result.assets[0].uri, name: "photo.jpg", type: "image/jpeg" });
   }
 
   async function pickFromGallery() {
-    const result = await ImagePicker.launchImageLibraryAsync({ quality: 0.8, allowsEditing: true });
+    const result = await ImagePicker.launchImageLibraryAsync(IMAGE_PICKER_GALLERY_OPTS);
     if (result.canceled || !result.assets[0]) return;
     setPreview(result.assets[0].uri);
     onPick({ uri: result.assets[0].uri, name: "photo.jpg", type: "image/jpeg" });

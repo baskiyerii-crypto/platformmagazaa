@@ -47,7 +47,11 @@ export default function StoreRequests() {
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.7,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    });
     if (result.canceled || !result.assets[0]) return;
 
     const formData = new FormData();

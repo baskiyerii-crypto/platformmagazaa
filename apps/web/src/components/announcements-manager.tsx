@@ -21,6 +21,7 @@ import {
   type AnnouncementReceiptStatus,
   type PaginatedResponse,
 } from "@magaza/shared";
+import { normalizeImageFile } from "@/lib/normalize-image-file";
 
 type Store = { id: string; name: string };
 type Attachment = { label: string; url: string; type: string };
@@ -613,8 +614,17 @@ export function StoreAnnouncementsView() {
     );
   }
 
-  function appendPending(id: string, list: FileList | null) {
-    const incoming = list ? Array.from(list) : [];
+  async function appendPending(id: string, list: FileList | null) {
+    const raw = list ? Array.from(list) : [];
+    if (!raw.length) return;
+    const incoming: File[] = [];
+    for (const f of raw) {
+      try {
+        incoming.push(await normalizeImageFile(f));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Görsel işlenemedi");
+      }
+    }
     if (!incoming.length) return;
     setFilesById((prev) => ({ ...prev, [id]: [...(prev[id] ?? []), ...incoming] }));
     setPreviewsById((prev) => ({
@@ -656,9 +666,18 @@ export function StoreAnnouncementsView() {
     setLoadingId(id);
     setError("");
     try {
+      const normalized: File[] = [];
+      for (const f of files) {
+        try {
+          normalized.push(await normalizeImageFile(f));
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Görsel işlenemedi");
+        }
+      }
+      if (!normalized.length) return;
       const form = new FormData();
       form.append("action", "ADD_IMAGES");
-      files.forEach((file, i) => form.append(`file_${i}`, file));
+      normalized.forEach((file, i) => form.append(`file_${i}`, file));
       const res = await fetch(`/api/v1/announcements/${id}/receipt`, { method: "PATCH", body: form });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -680,7 +699,7 @@ export function StoreAnnouncementsView() {
     const savedCount = items.find((x) => x.id === id)?.receipt?.completionImages?.length ?? 0;
     const status = items.find((x) => x.id === id)?.receipt?.status ?? "BEKLIYOR";
     if (status === "ISLEME_ALINDI" && savedCount === 0) {
-      appendPending(id, list);
+      await appendPending(id, list);
       return;
     }
     await uploadFilesNow(id, files);
@@ -756,10 +775,17 @@ export function StoreAnnouncementsView() {
     setLoadingId(id);
     setError("");
     try {
+      let normalized: File;
+      try {
+        normalized = await normalizeImageFile(file);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Görsel işlenemedi");
+        return;
+      }
       const form = new FormData();
       form.append("action", "REPLACE_IMAGE");
       form.append("imageUrl", imageUrl);
-      form.append("file", file);
+      form.append("file", normalized);
       const res = await fetch(`/api/v1/announcements/${id}/receipt`, { method: "PATCH", body: form });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
@@ -784,7 +810,7 @@ export function StoreAnnouncementsView() {
       <input
         ref={replaceGalleryRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/*"
+        accept="image/*,.heic,.heif,.HEIC,.HEIF"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
@@ -802,7 +828,7 @@ export function StoreAnnouncementsView() {
       <input
         ref={replaceCameraRef}
         type="file"
-        accept="image/*"
+        accept="image/*,.heic,.heif,.HEIC,.HEIF"
         capture="environment"
         className="hidden"
         onChange={(e) => {
@@ -955,7 +981,7 @@ export function StoreAnnouncementsView() {
                         addCameraRefs.current[a.id] = el;
                       }}
                       type="file"
-                      accept="image/*"
+                      accept="image/*,.heic,.heif,.HEIC,.HEIF"
                       capture="environment"
                       className="hidden"
                       disabled={busy}
@@ -969,7 +995,7 @@ export function StoreAnnouncementsView() {
                         addGalleryRefs.current[a.id] = el;
                       }}
                       type="file"
-                      accept="image/jpeg,image/png,image/webp,image/*"
+                      accept="image/*,.heic,.heif,.HEIC,.HEIF"
                       multiple
                       className="hidden"
                       disabled={busy}

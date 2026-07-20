@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFile } from "fs/promises";
 import path from "path";
-import { findUploadFile } from "@/lib/upload";
+import { findUploadFile, getUploadDirStatus } from "@/lib/upload";
 
 export async function GET(
   request: NextRequest,
@@ -16,24 +16,41 @@ export async function GET(
   }
   const filename = path.basename(decoded);
 
-  // Allow basename match even if path segments were passed
   if (!filename || filename.includes("..")) {
     return NextResponse.json({ error: "Geçersiz dosya" }, { status: 400 });
   }
 
   const wantThumb = request.nextUrl.searchParams.get("size") === "thumb";
-  const filePath = await findUploadFile(
-    filename,
-    wantThumb ? "thumb" : "full"
-  );
+  const debug = request.nextUrl.searchParams.get("debug") === "1";
+
+  let filePath = await findUploadFile(filename, wantThumb ? "thumb" : "full");
+  // Thumb missing → always try full before 404
+  if (!filePath && wantThumb) {
+    filePath = await findUploadFile(filename, "full");
+  }
 
   if (!filePath) {
+    const status = debug ? await getUploadDirStatus() : null;
     return NextResponse.json(
       {
         error: "Dosya bulunamadı",
-        hint: "Coolify Persistent Storage /app/uploads bağlı mı? Eski kayıtlar için görseli Düzenle ile yeniden yükleyin.",
+        filename,
+        ...(status
+          ? {
+              cwd: status.cwd,
+              resolvedDir: status.resolvedDir,
+              fileCount: status.fileCount,
+              candidateStats: status.candidateStats,
+            }
+          : {}),
+        hint: "Coolify → Storages: Destination Path=/app/uploads ve UPLOAD_DIR=/app/uploads",
       },
-      { status: 404 }
+      {
+        status: 404,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      }
     );
   }
 
@@ -44,13 +61,22 @@ export async function GET(
       ? "image/png"
       : ext === ".jpg" || ext === ".jpeg"
         ? "image/jpeg"
-        : "image/webp";
+        : ext === ".gif"
+          ? "image/gif"
+          : ext === ".avif"
+            ? "image/avif"
+            : ext === ".heic" || ext === ".heif"
+              ? "image/heic"
+              : ext === ".bmp"
+                ? "image/bmp"
+                : "image/webp";
 
   return new NextResponse(buffer, {
     status: 200,
     headers: {
       "Content-Type": contentType,
-      "Cache-Control": "public, max-age=3600",
+      "Content-Length": String(buffer.length),
+      "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
     },
   });
 }

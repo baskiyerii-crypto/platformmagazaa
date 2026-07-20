@@ -95,7 +95,12 @@ export default function StoreSignage() {
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true });
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.8,
+      allowsEditing: true,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    });
     if (result.canceled || !result.assets[0]) return;
 
     setSaving(true);
@@ -178,7 +183,12 @@ export default function StoreSignage() {
     if (!editEntry) return;
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) return;
-    const result = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: true });
+    const result = await ImagePicker.launchCameraAsync({
+      quality: 0.8,
+      allowsEditing: true,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+    });
     if (result.canceled || !result.assets[0]) return;
 
     const formData = new FormData();

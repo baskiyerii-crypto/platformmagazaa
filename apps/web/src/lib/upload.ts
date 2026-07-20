@@ -4,24 +4,37 @@ import { randomUUID } from "crypto";
 import sharp from "sharp";
 import { prisma, type MediaCategory } from "@magaza/database";
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR ?? "./uploads";
-const MAX_SIZE = 10 * 1024 * 1024;
-const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_SIZE = 20 * 1024 * 1024;
+const ALT_EXTS = [".webp", ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tif", ".tiff", ".heic", ".heif", ".avif"];
+const IMAGE_NAME_RE = /\.(jpe?g|png|webp|gif|bmp|tiff?|heic|heif|avif)$/i;
 
-function resolveUploadDir() {
-  return path.isAbsolute(UPLOAD_DIR)
-    ? UPLOAD_DIR
-    : path.join(process.cwd(), UPLOAD_DIR);
+/** Empty/whitespace UPLOAD_DIR must not win over default (Coolify sometimes sets ""). */
+function configuredUploadDir(): string {
+  const raw = process.env.UPLOAD_DIR?.trim();
+  if (raw && raw.length > 0) return raw;
+  return process.env.NODE_ENV === "production" ? "/app/uploads" : "./uploads";
 }
 
-/** Primary + legacy dirs (Nixpacks cwd=/app/apps/web previously wrote here). */
+function resolveUploadDir() {
+  const configured = configuredUploadDir();
+  return path.isAbsolute(configured)
+    ? configured
+    : path.join(process.cwd(), configured);
+}
+
+/** Primary + every legacy location we have ever written to. */
 function candidateUploadDirs() {
   const primary = resolveUploadDir();
+  const cwd = process.cwd();
   const legacy = [
-    path.join(process.cwd(), "uploads"),
-    path.join(process.cwd(), "..", "..", "uploads"),
+    path.join(cwd, "uploads"),
+    path.join(cwd, "apps", "web", "uploads"),
+    path.join(cwd, "..", "uploads"),
+    path.join(cwd, "..", "..", "uploads"),
     "/app/uploads",
     "/app/apps/web/uploads",
+    "/data/uploads",
+    "/var/uploads",
   ];
   return [...new Set([primary, ...legacy.map((d) => path.resolve(d))])];
 }
@@ -49,6 +62,21 @@ export async function getUploadDirStatus() {
   let writable = false;
   let fileCount: number | null = null;
   let error: string | null = null;
+  const candidateStats: Array<{ dir: string; exists: boolean; files: number }> = [];
+
+  for (const dir of candidateUploadDirs()) {
+    try {
+      await access(dir);
+      const names = await readdir(dir);
+      candidateStats.push({
+        dir,
+        exists: true,
+        files: names.filter((n) => !n.startsWith(".")).length,
+      });
+    } catch {
+      candidateStats.push({ dir, exists: false, files: 0 });
+    }
+  }
 
   try {
     await mkdir(resolvedDir, { recursive: true });
@@ -75,7 +103,9 @@ export async function getUploadDirStatus() {
     writable,
     fileCount,
     error,
+    cwd: process.cwd(),
     candidates: candidateUploadDirs(),
+    candidateStats,
   };
 }
 
@@ -83,12 +113,18 @@ export async function saveUploadedFile(
   file: File,
   options?: SaveUploadOptions
 ): Promise<string> {
-  if (!ALLOWED_TYPES.includes(file.type)) {
-    throw new Error("Sadece JPG, PNG ve WebP dosyaları yüklenebilir");
+  const type = (file.type || "").toLowerCase();
+  const nameOk = IMAGE_NAME_RE.test(file.name);
+  const typeOk =
+    type.startsWith("image/") ||
+    type === "application/octet-stream" ||
+    !type;
+  if (!typeOk && !nameOk) {
+    throw new Error("Sadece görsel dosyaları yüklenebilir (JPG, PNG, WebP, HEIC, GIF, …)");
   }
 
   if (file.size > MAX_SIZE) {
-    throw new Error("Dosya boyutu 10 MB'dan küçük olmalı");
+    throw new Error("Dosya boyutu 20 MB'dan küçük olmalı");
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -106,26 +142,71 @@ export async function saveUploadedFile(
     );
   }
 
-  const resized = await sharp(buffer)
-    .rotate()
-    .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 85 })
-    .toBuffer();
+  let resized: Buffer;
+  let thumb: Buffer;
+  try {
+    const input = sharp(buffer, { failOn: "none" });
+    const meta = await input.metadata().catch(() => null);
+    if (!meta?.format && !nameOk) {
+      throw new Error("Dosya görsel olarak okunamadı");
+    }
+    resized = await sharp(buffer, { failOn: "none" })
+      .rotate()
+      .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 85 })
+      .toBuffer();
+    thumb = await sharp(buffer, { failOn: "none" })
+      .rotate()
+      .resize({ width: 400, height: 400, fit: "cover" })
+      .webp({ quality: 75 })
+      .toBuffer();
+  } catch (e) {
+    // Fallback: decode → JPEG → WebP (helps some HEIC/odd formats)
+    try {
+      const jpeg = await sharp(buffer, { failOn: "none" })
+        .rotate()
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      resized = await sharp(jpeg)
+        .resize({ width: 1920, height: 1920, fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 85 })
+        .toBuffer();
+      thumb = await sharp(jpeg)
+        .resize({ width: 400, height: 400, fit: "cover" })
+        .webp({ quality: 75 })
+        .toBuffer();
+    } catch (e2) {
+      const msg = e2 instanceof Error ? e2.message : String(e2);
+      throw new Error(
+        `Görsel işlenemedi (iPhone HEIC dahil tüm formatlar desteklenir): ${msg}`
+      );
+    }
+  }
 
-  const thumb = await sharp(buffer)
-    .rotate()
-    .resize({ width: 400, height: 400, fit: "cover" })
-    .webp({ quality: 75 })
-    .toBuffer();
+  const fullPath = path.join(uploadPath, filename);
+  const thumbPath = path.join(uploadPath, thumbFilename);
 
   try {
-    await writeFile(path.join(uploadPath, filename), resized);
-    await writeFile(path.join(uploadPath, thumbFilename), thumb);
+    await writeFile(fullPath, resized);
+    await writeFile(thumbPath, thumb);
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     throw new Error(
       `Dosya yazılamadı (${uploadPath}): ${msg}. Coolify → Persistent Storage → /app/uploads ekleyin.`
     );
+  }
+
+  // Verify read-back from the same path we will serve from
+  try {
+    const st = await stat(fullPath);
+    if (st.size <= 0) throw new Error("yazılan dosya boş");
+    const found = await findUploadFile(filename, "full");
+    if (!found) {
+      throw new Error(`yazıldı ama okunamadı (dir=${uploadPath}, cwd=${process.cwd()})`);
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`Upload doğrulaması başarısız: ${msg}`);
   }
 
   const url = `/api/v1/uploads/${filename}`;
@@ -149,7 +230,7 @@ export async function saveUploadedFile(
 export async function deleteUploadedFile(urlOrFilename: string) {
   const filename = path.basename(urlOrFilename.split("?")[0] ?? urlOrFilename);
   const base = filename.replace(/\.[^.]+$/, "");
-  const names = [filename, `${base}_thumb.webp`];
+  const names = [filename, `${base}_thumb.webp`, ...ALT_EXTS.map((ext) => `${base}${ext}`)];
   for (const dir of candidateUploadDirs()) {
     for (const name of names) {
       try {
@@ -174,28 +255,63 @@ export function resolveUploadPath(filename: string, size?: "thumb" | "full") {
   return path.join(getUploadDir(), safeName);
 }
 
+function nameCandidates(filename: string, size?: "thumb" | "full"): string[] {
+  const safeName = path.basename(filename.split("?")[0] ?? filename);
+  const base = safeName.replace(/\.[^.]+$/, "");
+  if (size === "thumb") {
+    return [
+      `${base}_thumb.webp`,
+      safeName,
+      ...ALT_EXTS.map((ext) => `${base}${ext}`),
+    ];
+  }
+  return [
+    safeName,
+    ...ALT_EXTS.map((ext) => `${base}${ext}`),
+    `${base}_thumb.webp`,
+  ];
+}
+
 /** Find file on disk across primary + legacy upload directories. Skip empty files. */
 export async function findUploadFile(
   filename: string,
   size?: "thumb" | "full"
 ): Promise<string | null> {
-  const safeName = path.basename(filename);
-  const base = safeName.replace(/\.[^.]+$/, "");
-  const names =
-    size === "thumb"
-      ? [`${base}_thumb.webp`, safeName]
-      : [safeName, `${base}_thumb.webp`];
+  const names = nameCandidates(filename, size);
 
   for (const dir of candidateUploadDirs()) {
-    for (const name of names) {
+    for (const name of [...new Set(names)]) {
       const full = path.join(dir, name);
       try {
         const st = await stat(full);
-        if (st.size > 0) return full;
+        if (st.isFile() && st.size > 0) return full;
       } catch {
         /* try next */
       }
     }
   }
+
+  // Last resort: scan dirs for uuid prefix (extension mismatch / renamed)
+  const base = path.basename(filename.split("?")[0] ?? filename).replace(/\.[^.]+$/, "");
+  if (base.length >= 8) {
+    for (const dir of candidateUploadDirs()) {
+      try {
+        const entries = await readdir(dir);
+        const match = entries.find(
+          (n) =>
+            n.startsWith(base) &&
+            (size === "thumb" ? n.includes("_thumb") : !n.includes("_thumb"))
+        );
+        if (match) {
+          const full = path.join(dir, match);
+          const st = await stat(full);
+          if (st.isFile() && st.size > 0) return full;
+        }
+      } catch {
+        /* try next dir */
+      }
+    }
+  }
+
   return null;
 }

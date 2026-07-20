@@ -12,6 +12,7 @@ import {
   changeTargetTypeLabel,
   type ChangeRequestStatus,
 } from "@magaza/shared";
+import { normalizeImageFile } from "@/lib/normalize-image-file";
 
 type Request = {
   id: string;
@@ -26,7 +27,7 @@ function pickImage(mode: "camera" | "gallery"): Promise<File | null> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "image/*";
+    input.accept = "image/*,.heic,.heif,.HEIC,.HEIF";
     if (mode === "camera") {
       input.setAttribute("capture", "environment");
     }
@@ -54,10 +55,17 @@ export function StoreRequestsManager() {
   }, []);
 
   async function uploadImage(id: string, mode: "camera" | "gallery") {
-    const file = await pickImage(mode);
-    if (!file) return;
+    const picked = await pickImage(mode);
+    if (!picked) return;
     setUploadingId(id);
     try {
+      let file: File;
+      try {
+        file = await normalizeImageFile(picked);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Görsel işlenemedi");
+        return;
+      }
       const formData = new FormData();
       formData.append("file", file);
       const res = await fetch(`/api/v1/change-requests/${id}/upload-image`, {

@@ -37,8 +37,12 @@ export function normalizeMediaUrl(url: string | null | undefined): string | null
     }
   }
 
-  // Bare filename (uuid.webp)
-  if (/^[\w.-]+\.(webp|jpe?g|png)$/i.test(pathOnly) && !pathOnly.includes("/") && !pathOnly.includes("\\")) {
+  // Bare filename (uuid.webp / jpeg / heic / …)
+  if (
+    /^[\w.-]+\.(webp|jpe?g|png|gif|bmp|tiff?|heic|heif|avif)$/i.test(pathOnly) &&
+    !pathOnly.includes("/") &&
+    !pathOnly.includes("\\")
+  ) {
     return `/api/v1/uploads/${pathOnly}${query}`;
   }
 

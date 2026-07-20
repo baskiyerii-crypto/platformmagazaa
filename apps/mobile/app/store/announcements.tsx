@@ -84,6 +84,8 @@ export default function StoreAnnouncements() {
       quality: 0.8,
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       selectionLimit: multiple ? 20 : 1,
+      preferredAssetRepresentationMode:
+        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
     });
     if (result.canceled || !result.assets.length) return null;
     return result.assets;
@@ -314,7 +316,11 @@ export default function StoreAnnouncements() {
                     if (busy) return;
                     const permission = await ImagePicker.requestCameraPermissionsAsync();
                     if (!permission.granted) return Alert.alert("İzin gerekli");
-                    const result = await ImagePicker.launchCameraAsync({ quality: 0.8 });
+                    const result = await ImagePicker.launchCameraAsync({
+                      quality: 0.8,
+                      preferredAssetRepresentationMode:
+                        ImagePicker.UIImagePickerPreferredAssetRepresentationMode.Compatible,
+                    });
                     if (result.canceled || !result.assets[0]) return;
                     if (status === "ISLEME_ALINDI" && images.length === 0) {
                       await postStatus(a.id, "TAMAMLANDI", result.assets);
